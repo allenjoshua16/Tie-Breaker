@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Send, Sparkles, SlidersHorizontal, Info } from 'lucide-react';
+import { Send, Sparkles, SlidersHorizontal, Info, ShieldAlert } from 'lucide-react';
 import { UserPreferences } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -22,7 +22,8 @@ export default function DecisionInput({ onAnalyze, isLoading }: DecisionInputPro
     risk: 50,
     cost: 50,
     growth: 50,
-    stability: 50
+    stability: 50,
+    brutalHonesty: false
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -32,7 +33,7 @@ export default function DecisionInput({ onAnalyze, isLoading }: DecisionInputPro
     }
   };
 
-  const updatePref = (key: keyof UserPreferences, val: number) => {
+  const updatePref = (key: keyof UserPreferences, val: any) => {
     setPrefs(prev => ({ ...prev, [key]: val }));
   };
 
@@ -61,19 +62,31 @@ export default function DecisionInput({ onAnalyze, isLoading }: DecisionInputPro
         </div>
 
         <div className="bg-white rounded-2xl border border-border-light overflow-hidden shadow-sm">
-          <button
-            type="button"
-            onClick={() => setShowPrefs(!showPrefs)}
-            className="w-full p-4 flex items-center justify-between text-sm font-bold uppercase tracking-widest text-[#4A4A4A] hover:bg-gray-50 transition-colors"
-          >
-            <div className="flex items-center gap-2">
-              <SlidersHorizontal className="w-4 h-4" />
-              Tailor Intelligence
-            </div>
-            <span className="text-[10px] text-gray-400 font-medium">
-              {showPrefs ? 'Hide Preferences' : 'Adjust Priorities'}
-            </span>
-          </button>
+          <div className="flex divide-x divide-gray-100">
+            <button
+              type="button"
+              onClick={() => setShowPrefs(!showPrefs)}
+              className="flex-1 p-4 flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-[#4A4A4A] hover:bg-gray-50 transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <SlidersHorizontal className="w-4 h-4" />
+                Tailor Intelligence
+              </div>
+              <span className="text-[8px] text-gray-400 font-bold">
+                {showPrefs ? 'Collapse' : 'Customize'}
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => updatePref('brutalHonesty', !prefs.brutalHonesty)}
+              className={`px-6 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all ${
+                prefs.brutalHonesty ? 'bg-brand-coral/10 text-brand-coral' : 'text-gray-400 hover:bg-gray-50'
+              }`}
+            >
+              <ShieldAlert className="w-4 h-4" />
+              Brutal honesty {prefs.brutalHonesty ? 'ON' : 'OFF'}
+            </button>
+          </div>
 
           <AnimatePresence>
             {showPrefs && (
@@ -81,33 +94,48 @@ export default function DecisionInput({ onAnalyze, isLoading }: DecisionInputPro
                 initial={{ height: 0, opacity: 0 }}
                 animate={{ height: 'auto', opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
-                className="px-6 pb-6 pt-2 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4"
+                className="px-6 pb-6 pt-2 space-y-6"
               >
-                {[
-                  { key: 'risk', label: 'Risk Tolerance', left: 'Cautious', right: 'Ambitious' },
-                  { key: 'cost', label: 'Cost Sensitivity', left: 'Economical', right: 'Premium' },
-                  { key: 'growth', label: 'Growth Potential', left: 'Passive', right: 'Aggressive' },
-                  { key: 'stability', label: 'Stability Preference', left: 'Fluid', right: 'Secure' }
-                ].map((p) => (
-                  <div key={p.key} className="space-y-1">
-                    <div className="flex justify-between items-center text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                      <span>{p.label}</span>
-                      <span className="text-brand-sage">{prefs[p.key as keyof UserPreferences]}%</span>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+                  {[
+                    { key: 'risk', label: 'Risk Tolerance', left: 'Cautious', right: 'Ambitious' },
+                    { key: 'cost', label: 'Cost Sensitivity', left: 'Economical', right: 'Premium' },
+                    { key: 'growth', label: 'Growth Potential', left: 'Passive', right: 'Aggressive' },
+                    { key: 'stability', label: 'Stability Preference', left: 'Fluid', right: 'Secure' }
+                  ].map((p) => (
+                    <div key={p.key} className="space-y-1">
+                      <div className="flex justify-between items-center text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                        <span>{p.label}</span>
+                        <span className="text-brand-sage">{prefs[p.key as keyof UserPreferences] as number}%</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        value={prefs[p.key as keyof UserPreferences] as number}
+                        onChange={(e) => updatePref(p.key as keyof UserPreferences, parseInt(e.target.value))}
+                        className="w-full h-1 bg-gray-100 rounded-lg appearance-none cursor-pointer accent-brand-sage"
+                      />
+                      <div className="flex justify-between text-[8px] font-medium text-gray-300 uppercase tracking-tighter">
+                        <span>{p.left}</span>
+                        <span>{p.right}</span>
+                      </div>
                     </div>
-                    <input
-                      type="range"
-                      min="0"
-                      max="100"
-                      value={prefs[p.key as keyof UserPreferences]}
-                      onChange={(e) => updatePref(p.key as keyof UserPreferences, parseInt(e.target.value))}
-                      className="w-full h-1 bg-gray-100 rounded-lg appearance-none cursor-pointer accent-brand-sage"
-                    />
-                    <div className="flex justify-between text-[8px] font-medium text-gray-300 uppercase tracking-tighter">
-                      <span>{p.left}</span>
-                      <span>{p.right}</span>
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
+                
+                <div className="pt-4 border-t border-gray-50 flex items-center gap-4">
+                   <div className="flex-1">
+                      <p className="text-[10px] font-black uppercase text-gray-400 mb-1">Decision Deadline (Pressure Mode)</p>
+                      <input 
+                        type="text" 
+                        placeholder="e.g. '24 hours', 'Next Monday'"
+                        value={prefs.deadline || ''}
+                        onChange={(e) => updatePref('deadline', e.target.value)}
+                        className="w-full px-4 py-2 bg-gray-50 border border-border-light rounded-xl text-xs focus:border-brand-sage outline-none"
+                      />
+                   </div>
+                </div>
               </motion.div>
             )}
           </AnimatePresence>

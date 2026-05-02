@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { 
   CheckCircle2, 
   XCircle, 
@@ -16,16 +16,26 @@ import {
   ListTodo,
   ExternalLink,
   ShieldCheck,
-  AlertCircle
+  AlertCircle,
+  ShieldAlert,
+  Brain,
+  HelpCircle,
+  ArrowRight,
+  Frown,
+  BarChart4,
+  Activity
 } from 'lucide-react';
 import { AnalysisResult } from '../types';
 
 interface ResultsDisplayProps {
   result: AnalysisResult;
+  onRefine: (answer: string) => void;
+  onUpdateOutcome?: (status: 'success' | 'mistake' | 'learning') => void;
 }
 
-export default function ResultsDisplay({ result }: ResultsDisplayProps) {
+export default function ResultsDisplay({ result, onRefine, onUpdateOutcome }: ResultsDisplayProps) {
   const [copied, setCopied] = useState(false);
+  const [refinementInput, setRefinementInput] = useState('');
 
   const handleCopy = () => {
     const text = `
@@ -98,7 +108,12 @@ ${result.nextSteps.map(s => `- ${s}`).join('\n')}
              <MessageSquareQuote className="w-8 h-8 text-brand-sage/10" />
           </div>
           <div className="relative z-10">
-            <span className="text-[10px] font-black uppercase tracking-[0.34em] text-brand-sage mb-6 block">Intelligence Verdict</span>
+            <div className="flex justify-between items-start mb-6">
+              <span className="text-[10px] font-black uppercase tracking-[0.34em] text-brand-sage">Intelligence Verdict</span>
+              {result.timestamp && (
+                <span className="text-[9px] font-bold text-gray-300 uppercase tracking-widest">{new Date(result.timestamp).toLocaleDateString()}</span>
+              )}
+            </div>
             <p className="text-2xl md:text-3xl font-serif text-[#2D2D2D] leading-tight italic">
               "{result.summary}"
             </p>
@@ -115,74 +130,136 @@ ${result.nextSteps.map(s => `- ${s}`).join('\n')}
         </div>
       </section>
 
-      {/* 2. Intelligence Layer: Flip Factor, Scenarios, Action Plan */}
-      <div className="grid lg:grid-cols-12 gap-6">
+      {/* 2. Brutal Honesty Layer */}
+      <AnimatePresence>
+        {result.brutalTruth && result.brutalTruth !== 'N/A - Standard Mode' && (
+          <motion.section 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-brand-coral/5 border-2 border-brand-coral/20 rounded-[2rem] p-10 relative overflow-hidden"
+          >
+            <div className="absolute -top-10 -right-10 opacity-[0.05] rotate-12">
+               <ShieldAlert className="w-40 h-40 text-brand-coral" />
+            </div>
+            <div className="relative z-10">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-8 h-8 rounded-full bg-brand-coral flex items-center justify-center text-white">
+                   <ShieldAlert className="w-4 h-4" />
+                </div>
+                <h3 className="text-[11px] font-black uppercase tracking-[0.4em] text-brand-coral">Brutally Honest Critique</h3>
+              </div>
+              <p className="text-xl md:text-2xl font-serif text-brand-coral/90 leading-relaxed italic">
+                 "{result.brutalTruth}"
+              </p>
+              <p className="mt-6 text-[10px] font-bold text-brand-coral/60 uppercase tracking-widest">Cognitive Bias Alert: Challenging your current logic.</p>
+            </div>
+          </motion.section>
+        )}
+      </AnimatePresence>
+
+      {/* 3. Interrogation Phase */}
+      <section className="bg-white rounded-[2rem] border border-border-light p-10 shadow-sm">
+        <div className="flex items-center gap-3 mb-8">
+           <div className="w-10 h-10 bg-brand-gold/10 rounded-xl flex items-center justify-center text-brand-gold">
+              <Brain className="w-5 h-5" />
+           </div>
+           <div>
+              <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-[#4A4A4A]">Refining the Model</h3>
+              <p className="text-[10px] text-gray-400 font-medium">Answer these to reduce uncertainty and sharpen the verdict.</p>
+           </div>
+        </div>
         
-        {/* Flip Factor (Critical Variable) */}
-        <section className="lg:col-span-4 bg-[#FFFAFA] border border-brand-coral/10 rounded-[2rem] p-8 flex flex-col shadow-sm">
-          <div className="flex items-center gap-2 mb-6">
-            <Zap className="w-5 h-5 text-brand-coral" />
-            <h3 className="text-[11px] font-black uppercase tracking-widest text-brand-coral">The Decision Flip</h3>
-          </div>
-          <div className="flex-1 space-y-4">
-            <div>
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Critical Intelligence Variable</p>
-              <p className="text-xl font-serif text-[#2D2D2D] italic">"{result.criticalVariable.variable}"</p>
-            </div>
-            <div className="bg-white/80 rounded-2xl p-4 border border-brand-coral/5">
-              <p className="text-[10px] font-bold text-gray-400 uppercase mb-2">Current Context</p>
-              <p className="text-xs text-text-main leading-relaxed">{result.criticalVariable.currentState}</p>
-            </div>
-            <div className="bg-brand-coral text-white rounded-2xl p-4 shadow-sm shadow-brand-coral/20">
-              <p className="text-[10px] font-bold uppercase mb-2 opacity-80 underline decoration-white/30">Mind-Flip Condition</p>
-              <p className="text-sm font-medium leading-relaxed italic">{result.criticalVariable.flipCondition}</p>
-            </div>
-          </div>
-        </section>
-
-        {/* Action Plan */}
-        <section className="lg:col-span-4 bg-white border border-border-light rounded-[2rem] p-8 flex flex-col shadow-sm">
-          <div className="flex items-center gap-2 mb-6">
-            <ListTodo className="w-5 h-5 text-brand-sage" />
-            <h3 className="text-[11px] font-black uppercase tracking-widest text-[#4A4A4A]">Strategic Next Steps</h3>
-          </div>
-          <div className="flex-1 space-y-4">
-            {result.nextSteps.map((step, i) => (
-              <div key={i} className="flex gap-4 items-start group">
-                <div className="w-6 h-6 rounded-lg bg-gray-50 border border-gray-100 flex items-center justify-center text-[10px] font-bold text-brand-sage flex-shrink-0 group-hover:bg-brand-sage group-hover:text-white transition-all">
-                  {i + 1}
+        <div className="grid md:grid-cols-3 gap-6 mb-10">
+          {result.interrogation?.map((q) => (
+             <button
+               key={q.id}
+               onClick={() => setRefinementInput(q.question)}
+               className="p-6 text-left rounded-2xl bg-gray-50 border border-gray-100 hover:border-brand-gold hover:bg-white transition-all group"
+             >
+                <div className="w-6 h-6 rounded-lg bg-white border border-gray-100 flex items-center justify-center text-brand-gold mb-4 group-hover:scale-110 transition-transform">
+                   <HelpCircle className="w-3 h-3" />
                 </div>
-                <p className="text-xs text-text-main leading-relaxed font-medium pt-1">{step}</p>
-              </div>
-            ))}
-          </div>
-        </section>
+                <p className="text-xs font-bold text-[#4A4A4A] leading-relaxed italic group-hover:text-brand-gold transition-colors">"{q.question}"</p>
+                <span className="text-[8px] font-black uppercase tracking-widest text-gray-300 mt-4 block">{q.type} Focus</span>
+             </button>
+          ))}
+        </div>
 
-        {/* Scenario Simulator */}
-        <section className="lg:col-span-4 bg-[#F5F1EE] rounded-[2rem] p-8 flex flex-col shadow-sm border border-border-light relative overflow-hidden group">
-          <div className="absolute -top-12 -right-12 opacity-[0.03] group-hover:rotate-12 transition-transform duration-700">
-            <RotateCw className="w-48 h-48" />
-          </div>
-          <div className="flex items-center gap-2 mb-6 relative">
-            <RotateCw className="w-5 h-5 text-brand-gold" />
-            <h3 className="text-[11px] font-black uppercase tracking-widest text-[#4A4A4A]">Scenario Simulator</h3>
-          </div>
-          <div className="flex-1 space-y-3 relative">
-            {result.scenarios.map((scenario, i) => (
-              <div key={i} className="bg-white/60 hover:bg-white p-4 rounded-xl border border-[#EDE7E2] transition-colors">
-                <div className="flex justify-between items-center mb-1">
-                   <p className="text-[10px] font-black text-[#2D2D2D] truncate">{scenario.title}</p>
-                   <span className="text-[8px] font-bold text-brand-sage uppercase">{scenario.impact}</span>
+        <div className="relative">
+          <textarea 
+            value={refinementInput}
+            onChange={(e) => setRefinementInput(e.target.value)}
+            placeholder="Respond to a question or add a missing detail..."
+            className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-6 text-sm italic focus:bg-white focus:border-brand-gold outline-none min-h-[120px] transition-all"
+          />
+          <button 
+            disabled={!refinementInput.trim()}
+            onClick={() => onRefine(refinementInput)}
+            className="absolute bottom-4 right-4 flex items-center gap-2 px-6 py-3 bg-brand-gold text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-[#d4a017] shadow-lg shadow-brand-gold/20 transition-all disabled:opacity-30 disabled:shadow-none"
+          >
+             Refine Analysis <ArrowRight className="w-4 h-4" />
+          </button>
+        </div>
+      </section>
+
+      {/* 2. Audit-Ready Explainability (The "DS" Layer) */}
+      <div className="grid lg:grid-cols-2 gap-8">
+        {/* Feature Importance / Weight Breakdown */}
+        <section className="bg-white rounded-[2.5rem] border border-gray-100 p-10 shadow-sm">
+           <h3 className="text-[11px] font-black uppercase tracking-widest text-gray-400 mb-8 flex items-center gap-2">
+              <BarChart4 className="w-4 h-4" /> Decision Weight Entropy
+           </h3>
+           <div className="space-y-6">
+             {result.weightBreakdown?.map((w, i) => (
+                <div key={i} className="space-y-2">
+                   <div className="flex justify-between items-end">
+                      <div className="flex items-center gap-2">
+                         <div className="w-1.5 h-1.5 rounded-full bg-brand-sage" />
+                         <span className="text-[10px] font-black uppercase text-[#4A4A4A]">{w.criteria}</span>
+                      </div>
+                      <span className="text-[10px] font-serif italic text-brand-sage">{w.impactScore}% Impact</span>
+                   </div>
+                   <div className="h-1.5 bg-gray-50 rounded-full overflow-hidden">
+                      <motion.div 
+                        initial={{ width: 0 }}
+                        animate={{ width: `${w.impactScore}%` }}
+                        className="h-full bg-brand-sage"
+                      />
+                   </div>
+                   <p className="text-[9px] text-gray-400 italic leading-relaxed">{w.description}</p>
                 </div>
-                <p className="text-[10px] text-gray-500 italic leading-snug">Outcome: {scenario.outcome}</p>
-              </div>
-            ))}
-          </div>
-          <div className="mt-6 pt-4 border-t border-[#EDE7E2]">
-             <p className="text-[9px] text-[#9B9B9B] italic font-medium leading-relaxed">Intelligence models 10,000+ probabilistic outcomes per simulation node.</p>
-          </div>
+             ))}
+           </div>
         </section>
 
+        {/* Sensitivity Analysis */}
+        <section className="bg-[#4A4A4A] text-white rounded-[2.5rem] p-10 relative overflow-hidden">
+           <div className="absolute top-0 right-0 p-8 opacity-[0.05]">
+              <Activity className="w-24 h-24" />
+           </div>
+           <h3 className="text-[11px] font-black uppercase tracking-widest text-gray-400 mb-8 flex items-center gap-2">
+              <Zap className="w-4 h-4" /> Sensitivity Model
+           </h3>
+           <div className="space-y-4">
+              {result.sensitivityAnalysis?.map((s, i) => (
+                <div key={i} className="p-4 bg-white/5 rounded-2xl border border-white/10">
+                   <div className="flex justify-between items-start mb-2">
+                      <span className="text-[9px] font-black uppercase tracking-tighter text-brand-gold">{s.criteria} Sensitivity</span>
+                      <div className="flex items-center gap-1 text-[8px] font-bold text-brand-coral">
+                         <AlertCircle className="w-2 h-2" />
+                         <span>FLIP RISK</span>
+                      </div>
+                   </div>
+                   <p className="text-xs italic leading-relaxed text-gray-300">
+                      Verdict reverses if {s.criteria.toLowerCase()} weight {s.direction}s by <span className="text-white font-bold">{Math.abs(s.flipThreshold - s.currentWeight)}%</span> (to {s.flipThreshold}%).
+                   </p>
+                </div>
+              ))}
+              <div className="mt-6 pt-6 border-t border-white/10">
+                <p className="text-[8px] font-bold text-gray-400 uppercase tracking-widest text-center">Calculated using Monte Carlo Simulation Principles</p>
+              </div>
+           </div>
+        </section>
       </div>
 
       {/* 3. Deep Analysis Section: Grid inspired by Design */}
@@ -291,6 +368,97 @@ ${result.nextSteps.map(s => `- ${s}`).join('\n')}
           ))}
         </div>
       </section>
+
+      {/* 6. Outcome Closing Loop */}
+      <section className="bg-[#4A4A4A] text-white rounded-[2rem] p-10 relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2" />
+        <div className="relative z-10 flex flex-col md:flex-row items-center gap-12">
+          <div className="flex-1">
+            <h3 className="text-[11px] font-black uppercase tracking-[0.4em] text-gray-400 mb-6">Outcome Tracking & Learning</h3>
+            <p className="text-2xl font-serif italic mb-4">"Did this intelligence hold up?"</p>
+            <p className="text-gray-400 text-xs max-w-md leading-relaxed mb-8">Closing the loop helps Tiebreaker learn your decision patterns and improve future confidence models.</p>
+            
+            <div className="flex flex-wrap gap-3">
+               {[
+                 { id: 'success', label: 'Right Decision', icon: TrendingUp, color: 'hover:bg-brand-sage' },
+                 { id: 'mistake', label: 'Mistake Made', icon: Frown, color: 'hover:bg-brand-coral' },
+                 { id: 'learning', label: 'Incomplete / Learning', icon: Brain, color: 'hover:bg-brand-gold' }
+               ].map((status) => (
+                 <button
+                   key={status.id}
+                   onClick={() => onUpdateOutcome?.(status.id as any)}
+                   className={`flex items-center gap-3 px-6 py-3 rounded-xl border border-white/10 bg-white/5 text-[10px] font-black uppercase tracking-widest transition-all ${result.outcome?.status === status.id ? 'bg-white text-[#4A4A4A]' : status.color}`}
+                 >
+                   <status.icon className="w-4 h-4" />
+                   {status.label}
+                 </button>
+               ))}
+            </div>
+
+            <AnimatePresence>
+              {result.outcome?.status && result.outcome.status !== 'pending' && result.outcome.status !== 'success' && (
+                <motion.div 
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  className="mt-8 space-y-4"
+                >
+                  <p className="text-[10px] font-black uppercase text-gray-400 tracking-widest flex items-center gap-2">
+                    <ShieldAlert className="w-3 h-3" /> System Feed: What did we miss?
+                  </p>
+                  <textarea 
+                    placeholder="e.g. 'I overlooked the hidden maintenance costs' or 'The market shifted faster than predicted'..."
+                    defaultValue={result.outcome.notes}
+                    onChange={(e) => {
+                      if (onUpdateOutcome) {
+                        (onUpdateOutcome as any)(result.outcome!.status, e.target.value);
+                      }
+                    }}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-xs italic focus:bg-white/10 outline-none min-h-[80px]"
+                  />
+                  <div className="flex justify-between items-center">
+                    <p className="text-[8px] text-gray-500 font-bold uppercase tracking-tighter italic">This feedback will be used to calibrate the next simulation.</p>
+                    <button
+                      onClick={() => onRefine(`RETROSPECTIVE ANALYSIS: I marked this as ${result.outcome?.status}. My feedback: "${result.outcome?.notes}". Please investigate why this happened, find web benchmarks for these specific issues, and provide corrected solutions.`)}
+                      className="px-4 py-2 bg-brand-coral/20 text-brand-coral rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-brand-coral hover:text-white transition-all border border-brand-coral/20"
+                    >
+                      Recalibrate Intelligence
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+          <div className="w-full md:w-1/3 bg-white/5 p-8 rounded-[2rem] border border-white/10">
+             <p className="text-[10px] font-black uppercase text-gray-400 mb-2 underline decoration-white/20">Learning Log Status</p>
+             <p className="text-lg font-serif italic">
+               {result.outcome?.status === 'pending' ? 'Decision in Progress...' : `Logged as ${result.outcome?.status.toUpperCase()}`}
+             </p>
+             <div className="mt-6 flex items-center gap-2 text-[8px] text-gray-500 font-bold uppercase">
+                <Target className="w-3 h-3" /> System Intelligence Updated
+             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 7. Follow-up Intelligence Thread */}
+      {result.followUps && result.followUps.length > 0 && (
+        <div className="space-y-12 mt-12 pt-12 border-t-2 border-dashed border-gray-100">
+           <div className="flex items-center gap-3 px-6">
+              <div className="w-2 h-2 rounded-full bg-brand-gold animate-pulse" />
+              <h3 className="text-[11px] font-black uppercase tracking-[0.4em] text-gray-400">Intelligence Thread (Follow-ups)</h3>
+           </div>
+           {result.followUps.map((followUp, idx) => (
+             <div key={idx} className="relative pl-8 border-l-2 border-brand-gold/20">
+                <div className="absolute top-0 left-0 -translate-x-1/2 w-4 h-4 rounded-full bg-brand-gold border-4 border-white shadow-sm" />
+                <ResultsDisplay 
+                  result={followUp} 
+                  onRefine={onRefine} 
+                  onUpdateOutcome={onUpdateOutcome} 
+                />
+             </div>
+           ))}
+        </div>
+      )}
     </div>
   );
 }

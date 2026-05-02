@@ -26,6 +26,45 @@ const ANALYSIS_SCHEMA = {
       required: ["variable", "currentState", "flipCondition"]
     },
     nextSteps: { type: Type.ARRAY, items: { type: Type.STRING } },
+    interrogation: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          id: { type: Type.STRING },
+          question: { type: Type.STRING },
+          type: { type: Type.STRING, enum: ["weighting", "clarification", "confrontation"] }
+        },
+        required: ["id", "question", "type"]
+      }
+    },
+    weightBreakdown: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          criteria: { type: Type.STRING },
+          impactScore: { type: Type.NUMBER },
+          description: { type: Type.STRING }
+        },
+        required: ["criteria", "impactScore", "description"]
+      }
+    },
+    sensitivityAnalysis: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          criteria: { type: Type.STRING },
+          currentWeight: { type: Type.NUMBER },
+          flipThreshold: { type: Type.NUMBER },
+          direction: { type: Type.STRING, enum: ["increase", "decrease"] },
+          newVerdict: { type: Type.STRING }
+        },
+        required: ["criteria", "currentWeight", "flipThreshold", "direction", "newVerdict"]
+      }
+    },
+    brutalTruth: { type: Type.STRING },
     scenarios: {
       type: Type.ARRAY,
       items: {
@@ -77,10 +116,11 @@ const ANALYSIS_SCHEMA = {
       required: ["strengths", "weaknesses", "opportunities", "threats"]
     }
   },
-  required: ["summary", "confidence", "criticalVariable", "nextSteps", "scenarios", "sources", "prosCons", "comparison", "swot"]
+  required: ["summary", "confidence", "criticalVariable", "nextSteps", "scenarios", "sources", "prosCons", "comparison", "swot", "weightBreakdown", "sensitivityAnalysis"]
 };
 
-export async function analyzeDecision(decision: string, preferences?: UserPreferences): Promise<AnalysisResult> {
+export async function analyzeDecision(decision: string, preferences?: UserPreferences, previousHistory?: string): Promise<AnalysisResult> {
+  const startTime = Date.now();
   try {
     const prefBlock = preferences 
       ? `User Preferences (weighting 1-100):
@@ -88,23 +128,41 @@ export async function analyzeDecision(decision: string, preferences?: UserPrefer
          - Cost Sensitivity: ${preferences.cost}
          - Growth Orientation: ${preferences.growth}
          - Stability Preference: ${preferences.stability}
+         - Mode: ${preferences.brutalHonesty ? 'BRUTAL HONESTY (Challenge the user, highlight biases, be blunt)' : 'Balanced Professional'}
+         ${preferences.deadline ? `- Deadline: ${preferences.deadline}` : ""}
          Prioritize the analysis based on these weights.`
       : "Provide a balanced objective analysis.";
 
-    const prompt = `Evaluate the following decision: "${decision}". 
+    const historyBlock = previousHistory ? `Context from User's Decision History:\n${previousHistory}\nLook for patterns or recurring biases.` : "";
+
+    const isRetrospective = decision.includes('RETROSPECTIVE ANALYSIS');
+    
+    const prompt = isRetrospective 
+      ? `Evaluate this RETROSPECTIVE feedback: "${decision}". 
+         The user previously made a decision that resulted in a ${preferences?.brutalHonesty ? 'MISTAKE' : 'LEARNING'}.
+         
+         TASK:
+         1. Root Cause Analysis: Use Google Search to find why the user's observed outcome occurred.
+         2. Corrected Logic: Provide a new, hardened decision framework.
+         3. Specific Solutions: List 3 actionable ways to fix the current situation or prevent it next time.
+         
+         Format the response using the standard AnalysisResult structure, but prioritize the Brutal Truth and Next Steps sections for remediation.`
+      : `Evaluate the following decision: "${decision}". 
           ${prefBlock}
+          ${historyBlock}
 
           Analyze using real-world data and Google Search. 
           Respond following this structure:
           1. Summary: A definitive verdict.
-          2. Confidence Level: Score (0-100), label (e.g. 'High Confidence'), and WHY (data quality, market volatility, etc).
-          3. Critical Variable: Identify the ONE thing that would flip this decision (e.g. 'If interest rates exceed 5%').
-          4. Scenarios: Model 3 'What If' scenarios (e.g. 'Market crash', 'Salary hike', 'Competitor exit').
-          5. Next Steps: 3-5 immediate actionable items if the user proceeds.
-          6. Sources: 2-3 specific insights/benchmarks found, including reliability ratings.
-          7. Pros/Cons, Comparison Table, and SWOT analysis.
-          
-          CITATIONS: Cite real-world benchmarks or trends where possible.`;
+          2. Brutal Truth: ${preferences?.brutalHonesty ? "A brutally honest critique of the user's thinking. Focus on biases like Sunk Cost or Confirmation Bias." : "N/A"}
+          3. Confidence Level: Score (0-100), label, and justification.
+          4. Weight Breakdown: Quantitative impact of each criteria (Risk, Cost, Growth, Stability) based on user weights.
+          5. Sensitivity Analysis: Identify a 'Decision Flip' point—exactly how much one weight (e.g. Risk) would need to change to reverse this verdict.
+          6. Critical Variable: The factor that would flip this.
+          7. Scenarios: Model 3 'What If' scenarios.
+          8. Next Steps: 3-5 actionable items.
+          9. Interrogation: 3 follow-up questions.
+          10. Sources, Pros/Cons, Comparison Matrix, and SWOT.`;
 
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
@@ -124,9 +182,17 @@ export async function analyzeDecision(decision: string, preferences?: UserPrefer
 
     const data = JSON.parse(resultText);
     return {
+      id: crypto.randomUUID(),
+      timestamp: Date.now(),
       decision,
       ...data,
-      preferences
+      preferences,
+      outcome: { status: 'pending' },
+      metrics: {
+        iterations: 1,
+        timeToDecision: Date.now() - startTime,
+        inputComplexity: decision.length
+      }
     };
   } catch (error) {
     console.error("Error analyzing decision:", error);

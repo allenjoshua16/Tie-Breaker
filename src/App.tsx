@@ -8,13 +8,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Scale, Loader2, Sparkles, History, Trash2, ChevronRight, Share2, Download, Info } from 'lucide-react';
+import { Scale, Loader2, Sparkles, History, Trash2, ChevronRight, Share2, Download, Info, BarChart3 } from 'lucide-react';
 import { analyzeDecision } from './services/geminiService';
-import { AnalysisResult, UserPreferences } from './types';
+import { AnalysisResult, UserPreferences, AppAnalytics } from './types';
 import DecisionInput from './components/DecisionInput';
 import ResultsDisplay from './components/ResultsDisplay';
+import AnalyticsDashboard from './components/AnalyticsDashboard';
 
 export default function App() {
   const [loading, setLoading] = useState(false);
@@ -22,6 +23,38 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<AnalysisResult[]>([]);
   const [showHistory, setShowHistory] = useState(false);
+  const [showDashboard, setShowDashboard] = useState(false);
+
+  // Compute Analytics
+  const analytics: AppAnalytics = useMemo(() => {
+    const total = history.length;
+    if (total === 0) return {
+      totalDecisions: 0,
+      avgConfidence: 0,
+      accuracyRate: 0,
+      regretAverage: 0,
+      popularCategories: {},
+      avgIterations: 0
+    };
+
+    const avgConfidence = Math.round(history.reduce((acc, h) => acc + h.confidence.score, 0) / total);
+    const completed = history.filter(h => h.outcome?.status && h.outcome.status !== 'pending');
+    const success = completed.filter(h => h.outcome?.status === 'success').length;
+    const accuracyRate = completed.length > 0 ? Math.round((success / completed.length) * 100) : 0;
+    
+    // Average iterations (including follow-ups)
+    const totalIterations = history.reduce((acc, h) => acc + (h.followUps?.length || 0) + 1, 0);
+    const avgIterations = Number((totalIterations / total).toFixed(1));
+
+    return {
+      totalDecisions: total,
+      avgConfidence,
+      accuracyRate,
+      regretAverage: 0, // Future: implement regret slider
+      popularCategories: { 'General': total }, // Mock for now
+      avgIterations
+    };
+  }, [history]);
 
   // Load history on mount
   useEffect(() => {
@@ -45,16 +78,61 @@ export default function App() {
     setError(null);
     setShowHistory(false);
     try {
-      const data = await analyzeDecision(decision, preferences);
+      // Build history context for recursive intelligence
+      const historyContext = history
+        .slice(0, 5)
+        .map(h => `- Decision: ${h.decision} | Outcome: ${h.outcome?.status || 'Pending'} ${h.outcome?.notes ? `(Retrospective Learning: ${h.outcome.notes})` : ''}`)
+        .join('\n');
+
+      const data = await analyzeDecision(decision, preferences, historyContext);
       setResult(data);
       // Add to history (limit to 10 latest)
-      setHistory(prev => [data, ...prev.filter(h => h.decision !== data.decision)].slice(0, 10));
+      setHistory(prev => [data, ...prev.filter(h => h.id !== data.id)].slice(0, 10));
     } catch (err) {
       setError("Analysis failed. Please ensure your query is specific and meaningful.");
       console.error(err);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleRefine = async (answer: string) => {
+    if (!result) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const isRetrospective = answer.includes('RETROSPECTIVE ANALYSIS');
+      const refinementPrompt = isRetrospective 
+        ? answer 
+        : `ORIGINAL DILEMMA: ${result.decision}\n\nUSER CLARIFICATION/ANSWER: "${answer}"\n\nPlease refine the initial analysis based on this mission-critical input. Keep the same decision context but sharpen the intelligence.`;
+      
+      const data = await analyzeDecision(refinementPrompt, result.preferences);
+      
+      // Create a follow-up result
+      const followUp = { ...data, decision: `Follow-up Insight: ${answer.slice(0, 30)}...` };
+      
+      const updatedResult = {
+        ...result,
+        followUps: [...(result.followUps || []), followUp]
+      };
+      
+      setResult(updatedResult);
+      setHistory(prev => prev.map(h => h.id === result.id ? updatedResult : h));
+    } catch (err) {
+      setError("Refinement loop failed. Try a different input.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateOutcome = (status: 'success' | 'mistake' | 'learning', notes?: string) => {
+    if (!result) return;
+    const updated = { 
+      ...result, 
+      outcome: { status, notes: notes || result.outcome?.notes, loggedAt: Date.now() } 
+    };
+    setResult(updated);
+    setHistory(prev => prev.map(h => h.id === result.id ? updated : h));
   };
 
   const clearHistoryData = (e: React.MouseEvent) => {
@@ -94,6 +172,13 @@ export default function App() {
             </div>
           </div>
           <nav className="flex items-center gap-3">
+            <button 
+              onClick={() => setShowDashboard(true)}
+              className="p-2 text-gray-400 hover:text-brand-sage transition-colors"
+              title="System Analytics"
+            >
+              <BarChart3 className="w-5 h-5" />
+            </button>
             <button 
               onClick={() => setShowHistory(!showHistory)}
               className={`px-4 py-2 text-xs font-bold uppercase tracking-widest border border-border-light rounded-xl transition-all flex items-center gap-2 ${
@@ -157,7 +242,18 @@ export default function App() {
                       className="w-full text-left bg-white p-6 rounded-3xl border border-border-light hover:border-brand-sage hover:shadow-md transition-all group flex items-center justify-between"
                     >
                       <div className="flex-1 min-w-0">
-                        <span className="text-[8px] uppercase tracking-widest font-bold text-brand-sage mb-1 block">Decision Report</span>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-[8px] uppercase tracking-widest font-bold text-brand-sage">Decision Report</span>
+                          {item.outcome?.status && item.outcome?.status !== 'pending' && (
+                             <span className={`px-1.5 py-0.5 rounded text-[7px] font-black uppercase tracking-tighter border ${
+                               item.outcome.status === 'success' ? 'bg-brand-sage/10 text-brand-sage border-brand-sage/20' :
+                               item.outcome.status === 'mistake' ? 'bg-brand-coral/10 text-brand-coral border-brand-coral/20' :
+                               'bg-brand-gold/10 text-brand-gold border-brand-gold/20'
+                             }`}>
+                               {item.outcome.status}
+                             </span>
+                          )}
+                        </div>
                         <p className="text-lg font-serif italic text-text-main mb-1 truncate">"{item.decision}"</p>
                         <div className="flex items-center gap-3">
                           <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Confidence: {item.confidence.score}%</span>
@@ -257,7 +353,11 @@ export default function App() {
                 </div>
               </div>
 
-              <ResultsDisplay result={result} />
+              <ResultsDisplay 
+                result={result} 
+                onRefine={handleRefine}
+                onUpdateOutcome={updateOutcome}
+              />
             </motion.div>
           ) : null}
         </AnimatePresence>
@@ -293,6 +393,17 @@ export default function App() {
            </p>
         </div>
       </footer>
+
+      {/* Analytics Overlay */}
+      <AnimatePresence>
+        {showDashboard && (
+          <AnalyticsDashboard 
+            analytics={analytics} 
+            history={history} 
+            onClose={() => setShowDashboard(false)} 
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -46,9 +46,33 @@ export interface UserPreferences {
   cost: number;
   growth: number;
   stability: number;
+  brutalHonesty: boolean;
+  deadline?: string;
+}
+
+export interface InterrogationQuestion {
+  id: string;
+  question: string;
+  type: 'weighting' | 'clarification' | 'confrontation';
+}
+
+export interface WeightBreakdown {
+  criteria: string;
+  impactScore: number; // 0-100
+  description: string;
+}
+
+export interface SensitivityPoint {
+  criteria: string;
+  currentWeight: number;
+  flipThreshold: number;
+  direction: 'increase' | 'decrease';
+  newVerdict: string;
 }
 
 export interface AnalysisResult {
+  id: string;
+  timestamp: number;
   decision: string;
   summary: string;
   confidence: ConfidenceScore;
@@ -56,8 +80,33 @@ export interface AnalysisResult {
   nextSteps: string[];
   scenarios: Scenario[];
   sources: Source[];
+  interrogation: InterrogationQuestion[];
+  brutalTruth?: string;
+  weightBreakdown: WeightBreakdown[];
+  sensitivityAnalysis: SensitivityPoint[];
+  metrics: {
+    iterations: number;
+    timeToDecision: number; // ms
+    inputComplexity: number; // char count/params
+  };
   prosCons?: ProsCons;
   comparison?: ComparisonTable;
   swot?: SWOT;
+  followUps?: AnalysisResult[];
   preferences?: UserPreferences;
+  outcome?: {
+    status: 'pending' | 'success' | 'mistake' | 'learning';
+    notes?: string;
+    regretScore?: number; // 1-10
+    loggedAt?: number;
+  };
+}
+
+export interface AppAnalytics {
+  totalDecisions: number;
+  avgConfidence: number;
+  accuracyRate: number; // based on success/total logged
+  regretAverage: number;
+  popularCategories: Record<string, number>;
+  avgIterations: number;
 }
