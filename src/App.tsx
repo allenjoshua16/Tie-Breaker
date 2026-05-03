@@ -10,14 +10,18 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Scale, Loader2, Sparkles, History, Trash2, ChevronRight, Share2, Download, Info, BarChart3 } from 'lucide-react';
+import { Scale, Loader2, Sparkles, History, Trash2, ChevronRight, Share2, Download, Info, BarChart3, LogIn, LogOut, User as UserIcon } from 'lucide-react';
 import { analyzeDecision } from './services/geminiService';
 import { AnalysisResult, UserPreferences, AppAnalytics } from './types';
+import { loginWithGoogle, logout, auth } from './lib/firebase';
+import { onAuthStateChanged, User } from 'firebase/auth';
+import { saveUser, saveDecision, fetchDecisions, deleteDecisions } from './lib/dbService';
 import DecisionInput from './components/DecisionInput';
 import ResultsDisplay from './components/ResultsDisplay';
 import AnalyticsDashboard from './components/AnalyticsDashboard';
 
 export default function App() {
+  const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -56,29 +60,59 @@ export default function App() {
     };
   }, [history]);
 
-  // Load history on mount
+  // Auth and Data Fetching
   useEffect(() => {
-    const saved = localStorage.getItem('tiebreaker_history_v2');
-    if (saved) {
-      try {
-        setHistory(JSON.parse(saved));
-      } catch (e) {
-        console.error("Failed to parse history", e);
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      setUser(currentUser);
+      if (currentUser) {
+        await saveUser(currentUser);
+        const remoteHistory = await fetchDecisions(currentUser.uid);
+        setHistory(remoteHistory);
+      } else {
+        // Fallback to local storage for guests
+        const saved = localStorage.getItem('tiebreaker_history_v2');
+        if (saved) {
+          try {
+            setHistory(JSON.parse(saved));
+          } catch (e) {
+            console.error("Failed to parse local history", e);
+          }
+        }
       }
-    }
+    });
+    return () => unsubscribe();
   }, []);
 
-  // Save history when it changes
+  // Save guest history to local storage
   useEffect(() => {
-    localStorage.setItem('tiebreaker_history_v2', JSON.stringify(history));
-  }, [history]);
+    if (!user) {
+      localStorage.setItem('tiebreaker_history_v2', JSON.stringify(history));
+    }
+  }, [history, user]);
+
+  const handleLogin = async () => {
+    try {
+      await loginWithGoogle();
+    } catch (err) {
+      setError("Login failed. Check your connection.");
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      setHistory([]);
+      setResult(null);
+    } catch (err) {
+      console.error("Logout error", err);
+    }
+  };
 
   const handleAnalyze = async (decision: string, preferences: UserPreferences) => {
     setLoading(true);
     setError(null);
     setShowHistory(false);
     try {
-      // Build history context for recursive intelligence
       const historyContext = history
         .slice(0, 5)
         .map(h => `- Decision: ${h.decision} | Outcome: ${h.outcome?.status || 'Pending'} ${h.outcome?.notes ? `(Retrospective Learning: ${h.outcome.notes})` : ''}`)
@@ -86,8 +120,13 @@ export default function App() {
 
       const data = await analyzeDecision(decision, preferences, historyContext);
       setResult(data);
-      // Add to history (limit to 10 latest)
-      setHistory(prev => [data, ...prev.filter(h => h.id !== data.id)].slice(0, 10));
+      
+      const newHistory = [data, ...history.filter(h => h.id !== data.id)].slice(0, 10);
+      setHistory(newHistory);
+      
+      if (user) {
+        await saveDecision(user.uid, data);
+      }
     } catch (err) {
       setError("Analysis failed. Please ensure your query is specific and meaningful.");
       console.error(err);
@@ -107,8 +146,6 @@ export default function App() {
         : `ORIGINAL DILEMMA: ${result.decision}\n\nUSER CLARIFICATION/ANSWER: "${answer}"\n\nPlease refine the initial analysis based on this mission-critical input. Keep the same decision context but sharpen the intelligence.`;
       
       const data = await analyzeDecision(refinementPrompt, result.preferences);
-      
-      // Create a follow-up result
       const followUp = { ...data, decision: `Follow-up Insight: ${answer.slice(0, 30)}...` };
       
       const updatedResult = {
@@ -117,7 +154,12 @@ export default function App() {
       };
       
       setResult(updatedResult);
-      setHistory(prev => prev.map(h => h.id === result.id ? updatedResult : h));
+      const newHistory = history.map(h => h.id === result.id ? updatedResult : h);
+      setHistory(newHistory);
+      
+      if (user) {
+        await saveDecision(user.uid, updatedResult);
+      }
     } catch (err) {
       setError("Refinement loop failed. Try a different input.");
     } finally {
@@ -125,19 +167,27 @@ export default function App() {
     }
   };
 
-  const updateOutcome = (status: 'success' | 'mistake' | 'learning', notes?: string) => {
+  const updateOutcome = async (status: 'success' | 'mistake' | 'learning', notes?: string) => {
     if (!result) return;
     const updated = { 
       ...result, 
       outcome: { status, notes: notes || result.outcome?.notes, loggedAt: Date.now() } 
     };
     setResult(updated);
-    setHistory(prev => prev.map(h => h.id === result.id ? updated : h));
+    const newHistory = history.map(h => h.id === result.id ? updated : h);
+    setHistory(newHistory);
+    
+    if (user) {
+      await saveDecision(user.uid, updated);
+    }
   };
 
-  const clearHistoryData = (e: React.MouseEvent) => {
+  const clearHistoryData = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (confirm("Clear all decision history?")) {
+      if (user) {
+        await deleteDecisions(user.uid);
+      }
       setHistory([]);
     }
   };
@@ -172,6 +222,37 @@ export default function App() {
             </div>
           </div>
           <nav className="flex items-center gap-3">
+            {user ? (
+               <div className="flex items-center gap-4 bg-gray-50 pr-2 pl-4 py-1.5 rounded-2xl border border-gray-100">
+                  <div className="hidden md:block">
+                     <p className="text-[10px] font-black uppercase text-[#4A4A4A] tracking-tighter leading-none">{user.displayName || 'Intel Agent'}</p>
+                     <p className="text-[8px] font-bold text-gray-400 uppercase tracking-widest mt-1">Verified Member</p>
+                  </div>
+                  <button 
+                    onClick={handleLogout}
+                    className="p-2 text-gray-300 hover:text-brand-coral transition-colors"
+                    title="Logout"
+                  >
+                    <LogOut className="w-4 h-4" />
+                  </button>
+                  {user.photoURL ? (
+                    <img src={user.photoURL} alt="User" className="w-8 h-8 rounded-xl object-cover border-2 border-white shadow-sm" />
+                  ) : (
+                    <div className="w-8 h-8 rounded-xl bg-brand-sage flex items-center justify-center text-white">
+                      <UserIcon className="w-4 h-4" />
+                    </div>
+                  )}
+               </div>
+            ) : (
+              <button 
+                onClick={handleLogin}
+                className="px-4 py-2 text-xs font-black uppercase tracking-widest text-brand-sage hover:bg-brand-sage/5 transition-all flex items-center gap-2 border border-brand-sage/20 rounded-xl"
+              >
+                <LogIn className="w-3 h-3" />
+                Auth Portal
+              </button>
+            )}
+            <div className="w-px h-8 bg-gray-100 mx-1 hidden md:block" />
             <button 
               onClick={() => setShowDashboard(true)}
               className="p-2 text-gray-400 hover:text-brand-sage transition-colors"

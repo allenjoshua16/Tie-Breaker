@@ -1,0 +1,113 @@
+import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } from "docx";
+import * as fs from "fs";
+
+const doc = new Document({
+    sections: [
+        {
+            properties: {},
+            children: [
+                new Paragraph({
+                    text: "Tiebreaker: Decision Intelligence Platform",
+                    heading: HeadingLevel.TITLE,
+                    alignment: AlignmentType.CENTER,
+                }),
+                new Paragraph({
+                    text: "Executive Summary & Stakeholder Insight",
+                    heading: HeadingLevel.HEADING_1,
+                    alignment: AlignmentType.CENTER,
+                }),
+                new Paragraph({ text: "" }), // Spacer
+                
+                new Paragraph({
+                    children: [
+                        new TextRun({
+                            text: "Introduction",
+                            bold: true,
+                            size: 28,
+                        }),
+                    ],
+                }),
+                new Paragraph({
+                    text: "Tiebreaker is a high-fidelity decision engine designed to resolve complex, high-stakes dilemmas for professionals and business leaders. Unlike simple pro/con list generators, Tiebreaker leverages real-time web grounding and multi-dimensional scenario modeling to provide actionable strategic intelligence.",
+                    spacing: { after: 200 },
+                }),
+
+                new Paragraph({
+                    children: [
+                        new TextRun({
+                            text: "Key Differentiators & Features",
+                            bold: true,
+                            size: 28,
+                        }),
+                    ],
+                }),
+                new Paragraph({
+                    children: [
+                        new TextRun({ text: "• High-Stakes Decision Modeling: ", bold: true }),
+                        new TextRun("Moves beyond generic advice to provide quantitative confidence scores and 'Decision Flip' analysis—identifying the critical variable that could change the outcome."),
+                    ],
+                    spacing: { after: 120 },
+                }),
+                new Paragraph({
+                    children: [
+                        new TextRun({ text: "• Scenario Simulation: ", bold: true }),
+                        new TextRun("Probabilistic outcome modeling for different market or life events (e.g., 'What if interest rates rise?', 'What if I delay 6 months?')."),
+                    ],
+                    spacing: { after: 120 },
+                }),
+                new Paragraph({
+                    children: [
+                        new TextRun({ text: "• Personalized Weighting: ", bold: true }),
+                        new TextRun("Allows users to tailor intelligence based on their specific risk tolerance, cost sensitivity, and growth orientation."),
+                    ],
+                    spacing: { after: 120 },
+                }),
+                new Paragraph({
+                    children: [
+                        new TextRun({ text: "• Source Transparency: ", bold: true }),
+                        new TextRun("A built-in 'Transparency Layer' that validates insights with real-world benchmarks and citation reliability ratings."),
+                    ],
+                    spacing: { after: 120 },
+                }),
+
+                new Paragraph({
+                    children: [
+                        new TextRun({
+                            text: "Value Proposition",
+                            bold: true,
+                            size: 28,
+                        }),
+                    ],
+                }),
+                new Paragraph({
+                    text: "Tiebreaker reduces cognitive load and 'decision fatigue' by turning raw information into structured, trusted strategic roadmaps. It solves the 'black-box' trust issue in AI by showing the data backbone and logic behind every verdict.",
+                    spacing: { after: 200 },
+                }),
+
+                new Paragraph({
+                    children: [
+                        new TextRun({
+                            text: "Future Roadmap",
+                            bold: true,
+                            size: 28,
+                        }),
+                    ],
+                }),
+                new Paragraph({
+                    text: "1. Multi-User Collaboration: Interactive voting and conflict detection for team decisions.\n2. Behavioral Learning: Pattern detection over time to help users understand their personal decision biases.\n3. Outcome Tracking: Post-decision scorecards to correlate expectations with reality.",
+                }),
+
+                new Paragraph({ text: "" }),
+                new Paragraph({
+                    text: "Generated by Tiebreaker Platform Intelligence",
+                    alignment: AlignmentType.RIGHT,
+                }),
+            ],
+        },
+    ],
+});
+
+Packer.toBuffer(doc).then((buffer) => {
+    fs.writeFileSync("Tiebreaker_Stakeholder_Introduction.docx", buffer);
+    console.log("Document generated: Tiebreaker_Stakeholder_Introduction.docx");
+});

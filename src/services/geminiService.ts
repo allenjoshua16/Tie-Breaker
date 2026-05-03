@@ -142,7 +142,7 @@ export async function analyzeDecision(decision: string, preferences?: UserPrefer
          The user previously made a decision that resulted in a ${preferences?.brutalHonesty ? 'MISTAKE' : 'LEARNING'}.
          
          TASK:
-         1. Root Cause Analysis: Use Google Search to find why the user's observed outcome occurred.
+         1. Root Cause Analysis: Use Google Search to find real-time 2026 reasons why the user's observed outcome occurred. Locate recent market data, news reports, or economic shifts from late 2025/early 2026.
          2. Corrected Logic: Provide a new, hardened decision framework.
          3. Specific Solutions: List 3 actionable ways to fix the current situation or prevent it next time.
          
@@ -151,7 +151,7 @@ export async function analyzeDecision(decision: string, preferences?: UserPrefer
           ${prefBlock}
           ${historyBlock}
 
-          Analyze using real-world data and Google Search. 
+          Analyze using real-world data and Google Search. IMPORTANT: Access current 2026 information, latest tech trends, market benchmarks, and news to ensure this intelligence is up-to-the-minute accurate.
           Respond following this structure:
           1. Summary: A definitive verdict.
           2. Brutal Truth: ${preferences?.brutalHonesty ? "A brutally honest critique of the user's thinking. Focus on biases like Sunk Cost or Confirmation Bias." : "N/A"}

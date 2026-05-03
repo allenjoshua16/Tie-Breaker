@@ -1,0 +1,40 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile and metadata",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "lastLogin": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email"]
+    },
+    "Decision": {
+      "title": "Decision",
+      "description": "A single decision analysis result",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "decision": { "type": "string" },
+        "timestamp": { "type": "integer" },
+        "result": { "type": "object" },
+        "outcome": { "type": "object" },
+        "metrics": { "type": "object" }
+      },
+      "required": ["userId", "decision", "timestamp", "result"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles"
+    },
+    "/users/{userId}/decisions/{decisionId}": {
+      "schema": "Decision",
+      "description": "History of decisions for a user"
+    }
+  }
+}
