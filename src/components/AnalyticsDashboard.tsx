@@ -10,6 +10,16 @@ import {
   ArrowUpRight,
   ShieldCheck
 } from 'lucide-react';
+import { 
+  BarChart, 
+  Bar, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer, 
+  Cell 
+} from 'recharts';
 import { AppAnalytics, AnalysisResult } from '../types';
 
 interface AnalyticsDashboardProps {
@@ -19,6 +29,18 @@ interface AnalyticsDashboardProps {
 }
 
 export default function AnalyticsDashboard({ analytics, history, onClose }: AnalyticsDashboardProps) {
+  const categoryData = Object.entries(analytics.popularCategories || {}).map(([name, count]) => ({
+    name,
+    count
+  }));
+
+  const efficiencyData = [
+    { name: 'Stability', value: analytics.accuracyRate },
+    { name: 'Iterations', value: analytics.avgIterations * 10 }
+  ];
+
+  const CHART_COLORS = ['#C6A55C', '#8BA88E', '#D97B66', '#4A4A4A', '#7A7A7A'];
+
   return (
     <motion.div 
       initial={{ opacity: 0 }}
@@ -67,55 +89,94 @@ export default function AnalyticsDashboard({ analytics, history, onClose }: Anal
         <div className="grid lg:grid-cols-12 gap-8 mb-12">
           {/* Categories Chart */}
           <div className="lg:col-span-8 bg-white border border-gray-100 rounded-[2.5rem] p-10 shadow-sm relative overflow-hidden">
-             <div className="absolute top-0 right-0 p-8 opacity-[0.03]">
-                <BarChart3 className="w-40 h-40" />
-             </div>
              <div className="relative z-10">
                 <h3 className="text-[11px] font-black uppercase tracking-widest text-gray-400 mb-8 flex items-center gap-2">
                    <TrendingUp className="w-4 h-4" /> Category Distribution Analysis
                 </h3>
-                <div className="space-y-6">
-                   {Object.entries(analytics.popularCategories || { 'Career': 5, 'Finance': 3, 'Personal': 2 }).map(([cat, count], i) => (
-                     <div key={cat} className="space-y-2">
-                        <div className="flex justify-between text-[10px] font-black uppercase">
-                           <span className="text-[#4A4A4A]">{cat}</span>
-                           <span className="text-brand-sage">{count} Trials</span>
-                        </div>
-                        <div className="h-2 bg-gray-50 rounded-full overflow-hidden">
-                           <motion.div 
-                             initial={{ width: 0 }}
-                             animate={{ width: `${(count / analytics.totalDecisions) * 100}%` }}
-                             className="h-full bg-brand-sage rounded-full"
-                           />
-                        </div>
-                     </div>
-                   ))}
+                <div className="h-[300px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={categoryData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                      <XAxis 
+                        dataKey="name" 
+                        axisLine={false} 
+                        tickLine={false} 
+                        tick={{ fontSize: 10, fontWeight: 700, fill: '#9B9B9B' }}
+                        dy={10}
+                      />
+                      <YAxis hide />
+                      <Tooltip 
+                        cursor={{ fill: '#F9F9F9' }}
+                        contentStyle={{ 
+                          borderRadius: '16px', 
+                          border: 'none', 
+                          boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
+                          fontSize: '10px',
+                          fontWeight: 700,
+                          textTransform: 'uppercase'
+                        }}
+                      />
+                      <Bar dataKey="count" radius={[8, 8, 0, 0]} barSize={40}>
+                        {categoryData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
                 </div>
              </div>
           </div>
 
-          {/* Efficiency Metric */}
+          {/* Performance Efficiency Chart */}
           <div className="lg:col-span-4 bg-[#4A4A4A] text-white rounded-[2.5rem] p-10 relative overflow-hidden">
              <div className="relative z-10">
-                <h3 className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-12">Operational Efficiency</h3>
-                <div className="flex flex-col items-center justify-center text-center py-8">
+                <h3 className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-8">Performance Efficiency</h3>
+                <div className="h-[200px] w-full mb-6">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={efficiencyData} layout="vertical">
+                      <XAxis type="number" hide />
+                      <YAxis 
+                        dataKey="name" 
+                        type="category" 
+                        axisLine={false} 
+                        tickLine={false} 
+                        tick={{ fontSize: 10, fontWeight: 700, fill: '#FFFFFF', opacity: 0.6 }}
+                        width={80}
+                      />
+                      <Tooltip 
+                        cursor={{ fill: 'rgba(255,255,255,0.05)' }}
+                         contentStyle={{ 
+                          borderRadius: '12px', 
+                          border: 'none', 
+                          fontSize: '10px',
+                          fontWeight: 700
+                        }}
+                      />
+                      <Bar dataKey="value" radius={[0, 8, 8, 0]} barSize={24}>
+                        <Cell fill="#C6A55C" />
+                        <Cell fill="rgba(255,255,255,0.1)" />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="flex flex-col items-center justify-center text-center py-4">
                    <div className="relative">
-                      <svg className="w-32 h-32 transform -rotate-90">
-                        <circle cx="64" cy="64" r="58" stroke="currentColor" strokeWidth="6" fill="transparent" className="text-white/10" />
-                        <circle 
-                          cx="64" cy="64" r="58" stroke="currentColor" strokeWidth="6" fill="transparent" 
-                          strokeDasharray={364}
-                          strokeDashoffset={364 - (364 * analytics.accuracyRate / 100)}
-                          className="text-brand-gold"
-                        />
+                      <svg className="w-24 h-24 transform -rotate-90">
+                         <circle cx="48" cy="48" r="44" stroke="currentColor" strokeWidth="4" fill="transparent" className="text-white/10" />
+                         <circle 
+                           cx="48" cy="48" r="44" stroke="currentColor" strokeWidth="4" fill="transparent" 
+                           strokeDasharray={276}
+                           strokeDashoffset={276 - (276 * analytics.accuracyRate / 100)}
+                           className="text-brand-gold"
+                         />
                       </svg>
                       <div className="absolute inset-0 flex flex-col items-center justify-center">
-                         <span className="text-3xl font-serif">{analytics.accuracyRate}%</span>
-                         <span className="text-[8px] font-black uppercase tracking-tighter text-gray-400">Yield</span>
+                         <span className="text-xl font-serif">{analytics.accuracyRate}%</span>
+                         <span className="text-[7px] font-black uppercase tracking-tighter text-gray-400">Yield</span>
                       </div>
                    </div>
-                   <p className="mt-8 text-xs italic text-gray-300 leading-relaxed">
-                      "System throughput indicates high alignment between AI logic and user-reported outcomes."
+                   <p className="mt-6 text-[10px] italic text-gray-400 leading-relaxed">
+                      "System throughput indicates high alignment."
                    </p>
                 </div>
              </div>

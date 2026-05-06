@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Send, Sparkles, SlidersHorizontal, Info, ShieldAlert } from 'lucide-react';
+import { Send, Sparkles, SlidersHorizontal, Info, ShieldAlert, Zap } from 'lucide-react';
 import { UserPreferences } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -23,7 +23,8 @@ export default function DecisionInput({ onAnalyze, isLoading }: DecisionInputPro
     cost: 50,
     growth: 50,
     stability: 50,
-    brutalHonesty: false
+    brutalHonesty: false,
+    deepIntelligence: true
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -79,12 +80,22 @@ export default function DecisionInput({ onAnalyze, isLoading }: DecisionInputPro
             <button
               type="button"
               onClick={() => updatePref('brutalHonesty', !prefs.brutalHonesty)}
-              className={`px-6 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all ${
+              className={`px-4 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all ${
                 prefs.brutalHonesty ? 'bg-brand-coral/10 text-brand-coral' : 'text-gray-400 hover:bg-gray-50'
               }`}
             >
               <ShieldAlert className="w-4 h-4" />
               Brutal honesty {prefs.brutalHonesty ? 'ON' : 'OFF'}
+            </button>
+            <button
+              type="button"
+              onClick={() => updatePref('deepIntelligence', !prefs.deepIntelligence)}
+              className={`px-4 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all border-l border-gray-100 ${
+                prefs.deepIntelligence ? 'bg-brand-sage/10 text-brand-sage' : 'text-gray-400 hover:bg-gray-50'
+              }`}
+            >
+              <Zap className={`w-4 h-4 ${prefs.deepIntelligence ? 'text-brand-gold fill-brand-gold' : ''}`} />
+              Deep Intel {prefs.deepIntelligence ? 'ACTIVE' : 'OFF'}
             </button>
           </div>
 

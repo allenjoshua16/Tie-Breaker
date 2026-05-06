@@ -7,6 +7,7 @@ const ANALYSIS_SCHEMA = {
   type: Type.OBJECT,
   properties: {
     summary: { type: Type.STRING },
+    verdict: { type: Type.STRING, description: "The specific option the user should choose (e.g. 'Option A', 'Buy', 'Decline')" },
     confidence: {
       type: Type.OBJECT,
       properties: {
@@ -16,6 +17,16 @@ const ANALYSIS_SCHEMA = {
       },
       required: ["score", "label", "justification"]
     },
+    confidenceBreakdown: {
+      type: Type.OBJECT,
+      properties: {
+        consistency: { type: Type.NUMBER },
+        dataReliability: { type: Type.NUMBER },
+        variance: { type: Type.NUMBER },
+        formula: { type: Type.STRING }
+      },
+      required: ["consistency", "dataReliability", "variance", "formula"]
+    },
     criticalVariable: {
       type: Type.OBJECT,
       properties: {
@@ -24,19 +35,6 @@ const ANALYSIS_SCHEMA = {
         flipCondition: { type: Type.STRING }
       },
       required: ["variable", "currentState", "flipCondition"]
-    },
-    nextSteps: { type: Type.ARRAY, items: { type: Type.STRING } },
-    interrogation: {
-      type: Type.ARRAY,
-      items: {
-        type: Type.OBJECT,
-        properties: {
-          id: { type: Type.STRING },
-          question: { type: Type.STRING },
-          type: { type: Type.STRING, enum: ["weighting", "clarification", "confrontation"] }
-        },
-        required: ["id", "question", "type"]
-      }
     },
     weightBreakdown: {
       type: Type.ARRAY,
@@ -64,7 +62,46 @@ const ANALYSIS_SCHEMA = {
         required: ["criteria", "currentWeight", "flipThreshold", "direction", "newVerdict"]
       }
     },
+    scoringEngine: {
+      type: Type.OBJECT,
+      properties: {
+        criteriaWeights: { type: Type.OBJECT, additionalProperties: { type: Type.NUMBER } },
+        nodes: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              option: { type: Type.STRING },
+              scores: { type: Type.OBJECT, additionalProperties: { type: Type.NUMBER } },
+              totalWeightedScore: { type: Type.NUMBER }
+            },
+            required: ["option", "scores", "totalWeightedScore"]
+          }
+        }
+      },
+      required: ["criteriaWeights", "nodes"]
+    },
+    emotionalIntelligence: {
+      type: Type.OBJECT,
+      properties: {
+        biases: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              bias: { type: Type.STRING },
+              severity: { type: Type.NUMBER },
+              mitigation: { type: Type.STRING }
+            },
+            required: ["bias", "severity", "mitigation"]
+          }
+        },
+        decisionEnvironment: { type: Type.STRING }
+      },
+      required: ["biases", "decisionEnvironment"]
+    },
     brutalTruth: { type: Type.STRING },
+    nextSteps: { type: Type.ARRAY, items: { type: Type.STRING } },
     scenarios: {
       type: Type.ARRAY,
       items: {
@@ -89,6 +126,18 @@ const ANALYSIS_SCHEMA = {
         required: ["title", "reliability"]
       }
     },
+    interrogation: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          id: { type: Type.STRING },
+          question: { type: Type.STRING },
+          type: { type: Type.STRING, enum: ["weighting", "clarification", "confrontation"] }
+        },
+        required: ["id", "question", "type"]
+      }
+    },
     prosCons: {
       type: Type.OBJECT,
       properties: {
@@ -101,7 +150,16 @@ const ANALYSIS_SCHEMA = {
       type: Type.OBJECT,
       properties: {
         headers: { type: Type.ARRAY, items: { type: Type.STRING } },
-        rows: { type: Type.ARRAY, items: { type: Type.ARRAY, items: { type: Type.STRING } } }
+        rows: { 
+          type: Type.ARRAY, 
+          items: { 
+            type: Type.OBJECT, 
+            properties: {
+              cells: { type: Type.ARRAY, items: { type: Type.STRING } }
+            },
+            required: ["cells"]
+          } 
+        }
       },
       required: ["headers", "rows"]
     },
@@ -116,7 +174,11 @@ const ANALYSIS_SCHEMA = {
       required: ["strengths", "weaknesses", "opportunities", "threats"]
     }
   },
-  required: ["summary", "confidence", "criticalVariable", "nextSteps", "scenarios", "sources", "prosCons", "comparison", "swot", "weightBreakdown", "sensitivityAnalysis"]
+  required: [
+    "summary", "verdict", "confidence", "confidenceBreakdown", "criticalVariable", 
+    "weightBreakdown", "sensitivityAnalysis", "scoringEngine", "emotionalIntelligence", 
+    "nextSteps", "scenarios", "sources", "prosCons", "comparison", "swot"
+  ]
 };
 
 export async function analyzeDecision(decision: string, preferences?: UserPreferences, previousHistory?: string): Promise<AnalysisResult> {
@@ -129,40 +191,36 @@ export async function analyzeDecision(decision: string, preferences?: UserPrefer
          - Growth Orientation: ${preferences.growth}
          - Stability Preference: ${preferences.stability}
          - Mode: ${preferences.brutalHonesty ? 'BRUTAL HONESTY (Challenge the user, highlight biases, be blunt)' : 'Balanced Professional'}
+         - Analysis Depth: ${preferences.deepIntelligence ? 'DEEP INTELLIGENCE (Complex multi-variate modeling, second-order effects, rigorous risk assessment)' : 'Standard'}
          ${preferences.deadline ? `- Deadline: ${preferences.deadline}` : ""}
          Prioritize the analysis based on these weights.`
       : "Provide a balanced objective analysis.";
 
-    const historyBlock = previousHistory ? `Context from User's Decision History:\n${previousHistory}\nLook for patterns or recurring biases.` : "";
+    const historyBlock = previousHistory ? `Context from User's Decision History:\n${previousHistory}\nLook for recurring patterns: If they often prefer high-risk and fail, be more conservative.` : "";
 
-    const isRetrospective = decision.includes('RETROSPECTIVE ANALYSIS');
-    
-    const prompt = isRetrospective 
-      ? `Evaluate this RETROSPECTIVE feedback: "${decision}". 
-         The user previously made a decision that resulted in a ${preferences?.brutalHonesty ? 'MISTAKE' : 'LEARNING'}.
-         
-         TASK:
-         1. Root Cause Analysis: Use Google Search to find real-time 2026 reasons why the user's observed outcome occurred. Locate recent market data, news reports, or economic shifts from late 2025/early 2026.
-         2. Corrected Logic: Provide a new, hardened decision framework.
-         3. Specific Solutions: List 3 actionable ways to fix the current situation or prevent it next time.
-         
-         Format the response using the standard AnalysisResult structure, but prioritize the Brutal Truth and Next Steps sections for remediation.`
-      : `Evaluate the following decision: "${decision}". 
+    const complexityInstruction = preferences?.deepIntelligence 
+      ? `ACTIVATE DEEP INTELLIGENCE PROTOCOL:
+         - Analyze second-order and third-order consequences of each option.
+         - Identify hidden dependencies and systemic risks.
+         - Use Game Theory principles to evaluate stakeholder reactions.
+         - Perform an adversarial analysis: try to prove the current verdict wrong.
+         - Ensure the summary reflects high-complexity reasoning and logic chains.`
+      : "Standard professional analysis.";
+
+    const prompt = `Evaluate the following decision/query: "${decision}". 
           ${prefBlock}
           ${historyBlock}
+          ${complexityInstruction}
 
-          Analyze using real-world data and Google Search. IMPORTANT: Access current 2026 information, latest tech trends, market benchmarks, and news to ensure this intelligence is up-to-the-minute accurate.
-          Respond following this structure:
-          1. Summary: A definitive verdict.
-          2. Brutal Truth: ${preferences?.brutalHonesty ? "A brutally honest critique of the user's thinking. Focus on biases like Sunk Cost or Confirmation Bias." : "N/A"}
-          3. Confidence Level: Score (0-100), label, and justification.
-          4. Weight Breakdown: Quantitative impact of each criteria (Risk, Cost, Growth, Stability) based on user weights.
-          5. Sensitivity Analysis: Identify a 'Decision Flip' point—exactly how much one weight (e.g. Risk) would need to change to reverse this verdict.
-          6. Critical Variable: The factor that would flip this.
-          7. Scenarios: Model 3 'What If' scenarios.
-          8. Next Steps: 3-5 actionable items.
-          9. Interrogation: 3 follow-up questions.
-          10. Sources, Pros/Cons, Comparison Matrix, and SWOT.`;
+          TASK: Provide an ELITE Decision Intelligence analysis using real-world 2026 data.
+          
+          1. Scoring Engine: Break the decision into 2-3 logical options. Score each option across 4 criteria (Risk, Cost, Growth, Stability) from 0-100. Calculate weighted totals based on user preferences.
+          2. Emotional Intelligence: Detect if the user is hesitant, over-confident, or prone to biases (Sunk Cost, Loss Aversion). Call them out.
+          3. Confidence Formula: Earn your confidence score. Calculate based on (Consistency * Data_Reliability) / Variance.
+          4. Decision Flip: Mathematical sensitivity analysis.
+          5. Verdict: One definitive "Best" option.
+
+          Respond strictly in JSON according to specified schema. Use Google Search for 2026 market benchmarks.`;
 
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",

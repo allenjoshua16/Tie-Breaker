@@ -8,14 +8,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Scale, Loader2, Sparkles, History, Trash2, ChevronRight, Share2, Download, Info, BarChart3, LogIn, LogOut, User as UserIcon } from 'lucide-react';
+import { Scale, Loader2, Sparkles, History, Trash2, ChevronRight, Share2, Download, Info, BarChart3, LogIn, LogOut, User as UserIcon, ShieldCheck, Zap, Compass } from 'lucide-react';
 import { analyzeDecision } from './services/geminiService';
 import { AnalysisResult, UserPreferences, AppAnalytics } from './types';
 import { loginWithGoogle, logout, auth } from './lib/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { saveUser, saveDecision, fetchDecisions, deleteDecisions } from './lib/dbService';
+import { saveUser, saveDecision, fetchDecisions, deleteDecisions, normalizeDecision } from './lib/dbService';
 import DecisionInput from './components/DecisionInput';
 import ResultsDisplay from './components/ResultsDisplay';
 import AnalyticsDashboard from './components/AnalyticsDashboard';
@@ -23,13 +23,32 @@ import AnalyticsDashboard from './components/AnalyticsDashboard';
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(false);
+  // Force loading state reset if stuck
+  useEffect(() => {
+    if (loading) {
+      const timeout = setTimeout(() => {
+        if (loading) {
+          setLoading(false);
+          setError("The simulation timed out. This may happen with high-complexity queries. Please try again or simplify your request.");
+        }
+      }, 60000); // 60 seconds
+      return () => clearTimeout(timeout);
+    }
+  }, [loading]);
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<AnalysisResult[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [showDashboard, setShowDashboard] = useState(false);
-
-  // Compute Analytics
+  const [preferences, setPreferences] = useState<UserPreferences>({
+    risk: 50,
+    cost: 50,
+    growth: 50,
+    stability: 50,
+    brutalHonesty: true,
+    deepIntelligence: true
+  });
   const analytics: AppAnalytics = useMemo(() => {
     const total = history.length;
     if (total === 0) return {
@@ -62,16 +81,24 @@ export default function App() {
 
   // Auth and Data Fetching
   useEffect(() => {
+    let isMounted = true;
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      if (!isMounted) return;
+      
       setUser(currentUser);
       if (currentUser) {
-        await saveUser(currentUser);
-        const remoteHistory = await fetchDecisions(currentUser.uid);
-        setHistory(remoteHistory);
+        try {
+          await saveUser(currentUser);
+          const remoteHistory = await fetchDecisions(currentUser.uid);
+          if (isMounted) setHistory(remoteHistory);
+        } catch (err) {
+          console.error("Critical: Failed to sync user data.", err);
+          setError("Failed to sync your history. Please check your permissions.");
+        }
       } else {
         // Fallback to local storage for guests
         const saved = localStorage.getItem('tiebreaker_history_v2');
-        if (saved) {
+        if (saved && isMounted) {
           try {
             setHistory(JSON.parse(saved));
           } catch (e) {
@@ -80,7 +107,7 @@ export default function App() {
         }
       }
     });
-    return () => unsubscribe();
+    return () => { isMounted = false; unsubscribe(); };
   }, []);
 
   // Save guest history to local storage
@@ -91,10 +118,17 @@ export default function App() {
   }, [history, user]);
 
   const handleLogin = async () => {
+    if (isAuthenticating) return;
+    setIsAuthenticating(true);
+    setError(null);
     try {
       await loginWithGoogle();
-    } catch (err) {
-      setError("Login failed. Check your connection.");
+    } catch (err: any) {
+      if (err?.code !== 'auth/cancelled-popup-request' && err?.code !== 'auth/popup-closed-by-user') {
+        setError("Login failed. Check your connection.");
+      }
+    } finally {
+      setIsAuthenticating(false);
     }
   };
 
@@ -108,35 +142,55 @@ export default function App() {
     }
   };
 
-  const handleAnalyze = async (decision: string, preferences: UserPreferences) => {
+  const handleAnalyze = useCallback(async (decision: string, preferences: UserPreferences) => {
+    if (loading) return;
     setLoading(true);
     setError(null);
     setShowHistory(false);
     try {
+      const historicalBiases = history
+        .filter(h => h.emotionalIntelligence?.biases)
+        .flatMap(h => h.emotionalIntelligence!.biases.map(b => b.bias));
+      
+      const commonBiases = Array.from(new Set(historicalBiases)).slice(0, 3).join(', ');
+      
       const historyContext = history
         .slice(0, 5)
-        .map(h => `- Decision: ${h.decision} | Outcome: ${h.outcome?.status || 'Pending'} ${h.outcome?.notes ? `(Retrospective Learning: ${h.outcome.notes})` : ''}`)
+        .map(h => `- ${h.decision}: ${h.outcome?.status || 'Pending'} ${h.outcome?.notes ? `(Retrospective: ${h.outcome.notes})` : ''}`)
         .join('\n');
 
-      const data = await analyzeDecision(decision, preferences, historyContext);
-      setResult(data);
+      const personalizedContext = `
+        Pattern Context: 
+        - Historical Bias Tendencies: ${commonBiases || 'None detected yet'}
+        - Recent Success/Failure Loop: ${historyContext || 'First decision'}
+      `;
+
+      const data = await analyzeDecision(decision, preferences, personalizedContext);
+      const normalizedData = normalizeDecision(data);
+      setError(null);
+      setResult(normalizedData);
+      setLoading(false); // Release loading early
       
-      const newHistory = [data, ...history.filter(h => h.id !== data.id)].slice(0, 10);
-      setHistory(newHistory);
+      setHistory(prev => {
+        const filtered = prev.filter(h => h.id !== normalizedData.id);
+        const newHistory = [normalizedData, ...filtered].slice(0, 10);
+        return newHistory;
+      });
       
       if (user) {
-        await saveDecision(user.uid, data);
+        saveDecision(user.uid, normalizedData).catch(err => {
+          console.error("Cloud sync failed", err);
+        });
       }
     } catch (err) {
+      setLoading(false);
       setError("Analysis failed. Please ensure your query is specific and meaningful.");
       console.error(err);
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [history, user, loading]);
 
-  const handleRefine = async (answer: string) => {
-    if (!result) return;
+  const handleRefine = useCallback(async (answer: string) => {
+    if (!result || loading) return;
     setLoading(true);
     setError(null);
     try {
@@ -146,45 +200,66 @@ export default function App() {
         : `ORIGINAL DILEMMA: ${result.decision}\n\nUSER CLARIFICATION/ANSWER: "${answer}"\n\nPlease refine the initial analysis based on this mission-critical input. Keep the same decision context but sharpen the intelligence.`;
       
       const data = await analyzeDecision(refinementPrompt, result.preferences);
-      const followUp = { ...data, decision: `Follow-up Insight: ${answer.slice(0, 30)}...` };
+      const followUp = normalizeDecision({ ...data, decision: `Follow-up Insight: ${answer.slice(0, 30)}...` });
       
-      const updatedResult = {
+      const updatedResult = normalizeDecision({
         ...result,
         followUps: [...(result.followUps || []), followUp]
-      };
+      });
       
+      setError(null);
       setResult(updatedResult);
-      const newHistory = history.map(h => h.id === result.id ? updatedResult : h);
-      setHistory(newHistory);
+      setLoading(false); // Release loading early
+      setHistory(prev => prev.map(h => h.id === result.id ? updatedResult : h));
       
       if (user) {
-        await saveDecision(user.uid, updatedResult);
+        saveDecision(user.uid, updatedResult).catch(err => {
+          console.error("Refinement sync failed", err);
+        });
       }
     } catch (err) {
-      setError("Refinement loop failed. Try a different input.");
-    } finally {
       setLoading(false);
+      setError("Refinement loop failed. Try a different input.");
     }
-  };
+  }, [result, user, loading]);
 
-  const updateOutcome = async (status: 'success' | 'mistake' | 'learning', notes?: string) => {
-    if (!result) return;
-    const updated = { 
-      ...result, 
-      outcome: { status, notes: notes || result.outcome?.notes, loggedAt: Date.now() } 
-    };
+  // Use a ref for the result to avoid dependency cycles in updateOutcome
+  const resultRef = useRef(result);
+  useEffect(() => {
+    resultRef.current = result;
+  }, [result]);
+
+  const updateOutcome = useCallback(async (status: 'pending' | 'success' | 'mistake' | 'learning', notes?: string, committedAt?: number) => {
+    const currentResult = resultRef.current;
+    if (!currentResult) return;
+    
+    // Prevent redundant updates if nothing meaningful changed
+    if (status === currentResult.outcome?.status && notes === currentResult.outcome?.notes && !committedAt) {
+      return;
+    }
+
+    const updated: AnalysisResult = normalizeDecision({ 
+      ...currentResult, 
+      outcome: { 
+        status, 
+        notes: (notes !== undefined ? notes : currentResult.outcome?.notes) || null, 
+        loggedAt: Date.now(),
+        committedAt: committedAt || currentResult.outcome?.committedAt
+      } 
+    });
+    
     setResult(updated);
-    const newHistory = history.map(h => h.id === result.id ? updated : h);
-    setHistory(newHistory);
+    setHistory(prev => prev.map(h => h.id === currentResult.id ? updated : h));
     
     if (user) {
-      await saveDecision(user.uid, updated);
+      // Use a background task for saving to not block UI/render
+      saveDecision(user.uid, updated).catch(console.error);
     }
-  };
+  }, [user]);
 
   const clearHistoryData = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (confirm("Clear all decision history?")) {
+    if (confirm("Clear all decision history? This will reset the learning model.")) {
       if (user) {
         await deleteDecisions(user.uid);
       }
@@ -207,10 +282,21 @@ export default function App() {
     setTimeout(() => setShared(false), 2000);
   };
 
+  const handleExport = () => {
+    if (!result) return;
+    const dataStr = JSON.stringify(result, null, 2);
+    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+    const exportFileDefaultName = `tiebreaker_report_${result.id}.json`;
+    const linkElement = document.createElement('a');
+    linkElement.setAttribute('href', dataUri);
+    linkElement.setAttribute('download', exportFileDefaultName);
+    linkElement.click();
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-[#F9F9F9]">
       {/* Header */}
-      <header className="border-b border-border-light bg-white/80 backdrop-blur-md sticky top-0 z-10 px-6 py-4">
+      <header className="border-b border-border-light bg-white/80 backdrop-blur-md sticky top-0 z-[50] px-6 py-4">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 bg-[#4A4A4A] rounded-xl flex items-center justify-center text-white font-serif text-lg font-bold">
@@ -246,10 +332,11 @@ export default function App() {
             ) : (
               <button 
                 onClick={handleLogin}
-                className="px-4 py-2 text-xs font-black uppercase tracking-widest text-brand-sage hover:bg-brand-sage/5 transition-all flex items-center gap-2 border border-brand-sage/20 rounded-xl"
+                disabled={isAuthenticating}
+                className="px-4 py-2 text-xs font-black uppercase tracking-widest text-brand-sage hover:bg-brand-sage/5 transition-all flex items-center gap-2 border border-brand-sage/20 rounded-xl disabled:opacity-50"
               >
-                <LogIn className="w-3 h-3" />
-                Auth Portal
+                {isAuthenticating ? <Loader2 className="w-3 h-3 animate-spin" /> : <LogIn className="w-3 h-3" />}
+                {isAuthenticating ? 'Authenticating...' : 'Auth Portal'}
               </button>
             )}
             <div className="w-px h-8 bg-gray-100 mx-1 hidden md:block" />
@@ -373,7 +460,7 @@ export default function App() {
         <div className="max-w-3xl mx-auto mb-16 relative">
           {!result && !showHistory && <DecisionInput onAnalyze={handleAnalyze} isLoading={loading} />}
           
-          {error && (
+          {error && !result && (
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -416,7 +503,7 @@ export default function App() {
               className="space-y-12"
             >
               {/* Result Toolbar */}
-              <div className="flex items-center justify-between max-w-4xl mx-auto sticky top-24 z-10">
+              <div className="flex items-center justify-between max-w-4xl mx-auto sticky top-[73px] z-[40] bg-[#F9F9F9]/80 backdrop-blur-sm py-2">
                 <button
                    onClick={handleNewDecision}
                    className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-[#4A4A4A] bg-white border border-border-light rounded-xl hover:shadow-md transition-all flex items-center gap-2"

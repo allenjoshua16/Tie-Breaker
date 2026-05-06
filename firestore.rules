@@ -21,24 +21,35 @@ service cloud.firestore {
 
     // Users collection
     match /users/{userId} {
+      function isValidUser(data) {
+        return data.keys().hasAll(['uid', 'email']) &&
+               data.uid is string && data.uid == userId &&
+               data.email is string && data.email.size() <= 256;
+      }
+
       allow get: if isOwner(userId);
-      allow create: if isOwner(userId) && 
-        request.resource.data.keys().hasAll(['uid', 'email']) &&
-        request.resource.data.uid == userId;
+      allow create: if isOwner(userId) && isValidUser(request.resource.data);
       allow update: if isOwner(userId) && 
+        isValidUser(request.resource.data) &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastLogin', 'displayName']);
     }
 
     // Decisions subcollection
     match /users/{userId}/decisions/{decisionId} {
-      allow list: if isOwner(userId) && resource.data.userId == userId;
+      function isValidDecision(data) {
+        return data.userId is string && data.userId == userId &&
+               data.decision is string && data.decision.size() <= 2000 &&
+               data.timestamp is number &&
+               isValidId(decisionId);
+      }
+
+      allow list: if isOwner(userId);
       allow get: if isOwner(userId);
-      allow create: if isOwner(userId) && 
-        request.resource.data.userId == userId &&
-        isValidId(decisionId);
+      allow create: if isOwner(userId) && isValidDecision(request.resource.data);
       allow update: if isOwner(userId) &&
+        isValidDecision(request.resource.data) &&
         request.resource.data.userId == resource.data.userId &&
-        request.resource.data.diff(resource.data).affectedKeys().hasAny(['outcome', 'metrics', 'followUps']);
+        request.resource.data.diff(resource.data).affectedKeys().hasAny(['outcome', 'metrics', 'followUps', 'updatedAt', 'weightBreakdown', 'sensitivityAnalysis', 'scoringEngine', 'emotionalIntelligence', 'scenarios', 'sources', 'prosCons', 'comparison', 'swot', 'verdict', 'confidence', 'confidenceBreakdown', 'summary', 'criticalVariable', 'nextSteps', 'interrogation']);
       allow delete: if isOwner(userId);
     }
   }

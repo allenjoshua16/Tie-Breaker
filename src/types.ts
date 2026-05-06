@@ -5,9 +5,13 @@ export interface ProsCons {
   cons: string[];
 }
 
+export interface ComparisonRow {
+  cells: string[];
+}
+
 export interface ComparisonTable {
   headers: string[];
-  rows: string[][];
+  rows: ComparisonRow[];
 }
 
 export interface SWOT {
@@ -47,6 +51,7 @@ export interface UserPreferences {
   growth: number;
   stability: number;
   brutalHonesty: boolean;
+  deepIntelligence: boolean;
   deadline?: string;
 }
 
@@ -70,12 +75,33 @@ export interface SensitivityPoint {
   newVerdict: string;
 }
 
+export interface ScoringNode {
+  option: string;
+  scores: Record<string, number>; // Criteria -> 0-100 score
+  totalWeightedScore: number;
+}
+
+export interface EmotionalBias {
+  bias: string;
+  severity: number; // 0-100
+  mitigation: string;
+}
+
+export interface ConfidenceBreakdown {
+  consistency: number;
+  dataReliability: number;
+  variance: number;
+  formula: string;
+}
+
 export interface AnalysisResult {
   id: string;
   timestamp: number;
   decision: string;
   summary: string;
+  verdict: string; // Explicit option chosen by AI
   confidence: ConfidenceScore;
+  confidenceBreakdown?: ConfidenceBreakdown;
   criticalVariable: CriticalVariable;
   nextSteps: string[];
   scenarios: Scenario[];
@@ -84,6 +110,14 @@ export interface AnalysisResult {
   brutalTruth?: string;
   weightBreakdown: WeightBreakdown[];
   sensitivityAnalysis: SensitivityPoint[];
+  scoringEngine?: {
+    nodes: ScoringNode[];
+    criteriaWeights: Record<string, number>;
+  };
+  emotionalIntelligence?: {
+    biases: EmotionalBias[];
+    decisionEnvironment: string;
+  };
   metrics: {
     iterations: number;
     timeToDecision: number; // ms
@@ -99,6 +133,7 @@ export interface AnalysisResult {
     notes?: string;
     regretScore?: number; // 1-10
     loggedAt?: number;
+    committedAt?: number;
   };
 }
 
