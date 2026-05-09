@@ -98,7 +98,7 @@ This project helped strengthen practical experience in:
 
 ## Contributors
 
-- Joshua Allen
+- Allen Joshua
 - Google AI Studio
 
 ---
