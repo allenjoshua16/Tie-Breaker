@@ -172,6 +172,24 @@ const ANALYSIS_SCHEMA = {
         threats: { type: Type.ARRAY, items: { type: Type.STRING } }
       },
       required: ["strengths", "weaknesses", "opportunities", "threats"]
+    },
+    mapData: {
+      type: Type.OBJECT,
+      properties: {
+        origin: { type: Type.STRING },
+        destination: { type: Type.STRING },
+        travelMode: { type: Type.STRING, enum: ["DRIVING", "WALKING", "BICYCLING", "TRANSIT"] },
+        description: { type: Type.STRING }
+      },
+      required: ["origin", "destination", "travelMode"]
+    },
+    visualAsset: {
+      type: Type.OBJECT,
+      properties: {
+        prompt: { type: Type.STRING, description: "Highly descriptive prompt to generate a visual representation of this logic/decision." },
+        description: { type: Type.STRING, description: "Why this visual asset is helpful." }
+      },
+      required: ["prompt", "description"]
     }
   },
   required: [
@@ -181,7 +199,30 @@ const ANALYSIS_SCHEMA = {
   ]
 };
 
-export async function analyzeDecision(decision: string, preferences?: UserPreferences, previousHistory?: string): Promise<AnalysisResult> {
+export async function generateResultImage(prompt: string): Promise<string> {
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash-image',
+      contents: [{ parts: [{ text: prompt }] }],
+      config: {
+        imageConfig: {
+          aspectRatio: "16:9",
+        },
+      },
+    });
+
+    for (const part of response.candidates?.[0]?.content?.parts || []) {
+      if (part.inlineData) {
+        return `data:image/png;base64,${part.inlineData.data}`;
+      }
+    }
+  } catch (e) {
+    console.error("Image generation failed", e);
+  }
+  return "";
+}
+
+export async function analyzeDecision(decision: string, preferences?: UserPreferences, previousHistory?: string, images?: string[]): Promise<AnalysisResult> {
   const startTime = Date.now();
   try {
     const prefBlock = preferences 
@@ -207,24 +248,43 @@ export async function analyzeDecision(decision: string, preferences?: UserPrefer
          - Ensure the summary reflects high-complexity reasoning and logic chains.`
       : "Standard professional analysis.";
 
-    const prompt = `Evaluate the following decision/query: "${decision}". 
+    const mapInstruction = `MAP INTEGRATION: If the query involves comparing locations, distances, or multi-site logistics, PROVIDE mapData with specific origin and destination via Google Maps.`;
+    const imageInstruction = `IMAGE INPUT ANALYSIS: If images are provided, analyze them for visual evidence, technical specs, or aesthetic differences. IMPORTANT: If images are unrelated to the decision query (e.g., random memes instead of product photos), acknowledge this and throw a logical error/warning in the 'brutalTruth' section.`;
+
+    const promptText = `Evaluate the following decision/query: "${decision}". 
           ${prefBlock}
           ${historyBlock}
           ${complexityInstruction}
+          ${mapInstruction}
+          ${imageInstruction}
 
           TASK: Provide an ELITE Decision Intelligence analysis using real-world 2026 data.
           
-          1. Scoring Engine: Break the decision into 2-3 logical options. Score each option across 4 criteria (Risk, Cost, Growth, Stability) from 0-100. Calculate weighted totals based on user preferences.
-          2. Emotional Intelligence: Detect if the user is hesitant, over-confident, or prone to biases (Sunk Cost, Loss Aversion). Call them out.
-          3. Confidence Formula: Earn your confidence score. Calculate based on (Consistency * Data_Reliability) / Variance.
-          4. Decision Flip: Mathematical sensitivity analysis.
-          5. Verdict: One definitive "Best" option.
+          1. visualAsset: Always provide a prompt for a high-quality summary infographic or conceptual 3D render that represents the core trade-off.
+          2. Map Data: Use only if spatial comparison is required.
+          3. Scoring Engine: Break the decision into 2-3 logical options. Score each option across 4 criteria (Risk, Cost, Growth, Stability) from 0-100. Calculate weighted totals based on user preferences.
+          4. Emotional Intelligence: Detect if the user is hesitant, over-confident, or prone to biases (Sunk Cost, Loss Aversion). Call them out.
+          5. Confidence Formula: Earn your confidence score. Calculate based on (Consistency * Data_Reliability) / Variance.
+          6. Decision Flip: Mathematical sensitivity analysis.
+          7. Verdict: One definitive "Best" option.
 
           Respond strictly in JSON according to specified schema. Use Google Search for 2026 market benchmarks.`;
 
+    const parts: any[] = [{ text: promptText }];
+    if (images && images.length > 0) {
+      images.forEach(img => {
+        parts.push({
+          inlineData: {
+            mimeType: "image/png",
+            data: img.split(',')[1] || img
+          }
+        });
+      });
+    }
+
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: prompt,
+      model: images && images.length > 0 ? "gemini-3-pro-image-preview" : "gemini-3-flash-preview",
+      contents: [{ parts }],
       config: {
         responseMimeType: "application/json",
         responseSchema: ANALYSIS_SCHEMA as any,
@@ -239,11 +299,19 @@ export async function analyzeDecision(decision: string, preferences?: UserPrefer
     }
 
     const data = JSON.parse(resultText);
+    
+    // Generate image if requested
+    let generatedImageUrl = "";
+    if (data.visualAsset?.prompt) {
+      generatedImageUrl = await generateResultImage(data.visualAsset.prompt);
+    }
+
     return {
       id: crypto.randomUUID(),
       timestamp: Date.now(),
       decision,
       ...data,
+      visualAsset: data.visualAsset ? { ...data.visualAsset, url: generatedImageUrl } : undefined,
       preferences,
       outcome: { status: 'pending' },
       metrics: {

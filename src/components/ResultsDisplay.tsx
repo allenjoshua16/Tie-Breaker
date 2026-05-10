@@ -26,6 +26,7 @@ import {
   Sparkles,
   Zap,
   RotateCw,
+  Loader2,
   ListTodo,
   ExternalLink,
   ShieldCheck,
@@ -42,10 +43,13 @@ import {
   Download,
   Share2,
   Lock,
-  EyeOff
+  EyeOff,
+  Map as MapIcon,
+  Image as ImageIcon
 } from 'lucide-react';
 import { AnalysisResult } from '../types';
 import DecisionSimulation from './DecisionSimulation';
+import DecisionMap from './DecisionMap';
 
 interface ResultsDisplayProps {
   result: AnalysisResult;
@@ -361,7 +365,33 @@ Intelligence Report: ${result.summary}
 
   return (
     <div className="space-y-12 pb-24">
-      {/* 1. Confidence & Verdict Section */}
+      {result.error && (
+        <motion.section 
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="bg-brand-coral/5 border border-brand-coral/20 rounded-[2.5rem] p-12 text-center"
+        >
+           <div className="w-20 h-20 bg-brand-coral/10 rounded-3xl flex items-center justify-center mx-auto mb-8">
+              <ShieldAlert className="w-10 h-10 text-brand-coral" />
+           </div>
+           <h3 className="text-2xl font-serif text-[#2D2D2D] mb-4">Verification Intelligence Failed</h3>
+           <p className="text-sm text-gray-500 max-w-lg mx-auto leading-relaxed mb-8">
+             {result.error}
+           </p>
+           <div className="flex justify-center gap-4">
+              <button 
+                onClick={() => window.location.reload()}
+                className="px-8 py-3 bg-[#4A4A4A] text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-[#2D2D2D] transition-all"
+              >
+                Reset Engine
+              </button>
+           </div>
+        </motion.section>
+      )}
+
+      {!result.error && (
+        <>
+          {/* 1. Confidence & Verdict Section */}
       <section className="bg-white rounded-[2.5rem] border border-border-light shadow-sm overflow-hidden flex flex-col md:flex-row divide-y md:divide-y-0 md:divide-x divide-gray-100">
         <div className="p-10 flex flex-col items-center justify-center bg-gray-50/50 md:w-1/3">
           <div className="relative w-32 h-32 flex items-center justify-center mb-6">
@@ -524,6 +554,68 @@ Intelligence Report: ${result.summary}
         onCommit={(option) => onUpdateOutcome?.(result.outcome?.status || 'pending', result.outcome?.notes, Date.now())}
       />
 
+      {/* 1.5. Spatial & Visual Intelligence Layer */}
+      {(result.mapData || result.visualAsset) && (
+        <div className="grid lg:grid-cols-12 gap-8">
+           {result.mapData && (
+             <motion.section 
+               initial={{ opacity: 0, x: -20 }}
+               whileInView={{ opacity: 1, x: 0 }}
+               className={`${result.visualAsset ? 'lg:col-span-7' : 'lg:col-span-12'}`}
+             >
+                <div className="mb-6 flex items-center gap-3">
+                   <div className="w-8 h-8 rounded-xl bg-brand-sage/10 flex items-center justify-center text-brand-sage">
+                      <MapIcon className="w-4 h-4" />
+                   </div>
+                   <h3 className="text-[11px] font-black uppercase tracking-[0.4em] text-brand-sage">Spatial Analysis & Routing</h3>
+                </div>
+                <DecisionMap data={result.mapData} />
+             </motion.section>
+           )}
+
+           {result.visualAsset && (
+             <motion.section 
+               initial={{ opacity: 0, x: 20 }}
+               whileInView={{ opacity: 1, x: 0 }}
+               className={`${result.mapData ? 'lg:col-span-5' : 'lg:col-span-12'}`}
+             >
+                <div className="mb-6 flex items-center gap-3">
+                   <div className="w-8 h-8 rounded-xl bg-brand-gold/10 flex items-center justify-center text-brand-gold">
+                      <ImageIcon className="w-4 h-4" />
+                   </div>
+                   <h3 className="text-[11px] font-black uppercase tracking-[0.4em] text-brand-gold">Logic Visualization</h3>
+                </div>
+                <div className="bg-white p-6 rounded-[2.5rem] border border-border-light shadow-sm overflow-hidden h-full flex flex-col">
+                   <div className="flex-1 rounded-2xl overflow-hidden bg-gray-50 mb-6 group relative">
+                      {result.visualAsset.url ? (
+                        <img 
+                          src={result.visualAsset.url} 
+                          alt="Logic visualization" 
+                          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                          referrerPolicy="no-referrer"
+                        />
+                      ) : (
+                        <div className="w-full h-full min-h-[200px] flex flex-col items-center justify-center p-8 text-center text-gray-400">
+                           <Loader2 className="w-8 h-8 animate-spin mb-4" />
+                           <p className="text-[10px] font-bold uppercase tracking-widest leading-relaxed">System generating <br/> unique visual concept...</p>
+                        </div>
+                      )}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-6">
+                         <p className="text-[10px] text-white/90 italic line-clamp-2">
+                           {result.visualAsset.description}
+                         </p>
+                      </div>
+                   </div>
+                   <div className="bg-gray-50/50 p-4 rounded-2xl border border-gray-100">
+                      <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-1">AI Render Prompt</p>
+                      <p className="text-[10px] text-gray-600 italic line-clamp-3">"{result.visualAsset.prompt}"</p>
+                   </div>
+                </div>
+             </motion.section>
+           )}
+        </div>
+      )}
+
       {/* 2. Emotional Intelligence & Brutal Honesty */}
       <div className="grid lg:grid-cols-12 gap-8">
         <section className="lg:col-span-12">
@@ -685,97 +777,6 @@ Intelligence Report: ${result.summary}
         </div>
       </section>
 
-      {/* 6. Learning Loop */}
-      <section className="bg-[#2D2D2D] text-white rounded-[3rem] p-12 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-brand-coral/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
-        <div className="relative z-1 flex flex-col lg:flex-row items-center gap-16">
-          <div className="flex-1">
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/5 rounded-full border border-white/10 mb-8">
-               <TrendingUp className="w-3 h-3 text-brand-sage" />
-               <span className="text-[9px] font-black uppercase tracking-widest text-gray-400">Post-Decision Learning Loop</span>
-            </div>
-            <h3 className="text-3xl md:text-4xl font-serif italic mb-6">How was the landing?</h3>
-            <p className="text-gray-400 text-sm max-w-lg leading-relaxed mb-10">Closing the loop is what makes Tiebreaker elite. By logging the outcome, we recalibrate your future risk patterns and bias detection models.</p>
-            
-            <div className="flex flex-wrap gap-4 mb-10">
-               {[
-                 { id: 'success', label: 'Superior Outcome', icon: TrendingUp, color: 'hover:bg-brand-sage' },
-                 { id: 'mistake', label: 'Costly Mistake', icon: Frown, color: 'hover:bg-brand-coral' },
-                 { id: 'learning', label: 'Pivot Required', icon: Brain, color: 'hover:bg-brand-gold' }
-               ].map((status) => (
-                 <button
-                   key={status.id}
-                   onClick={() => onUpdateOutcome?.(status.id as any)}
-                   className={`flex items-center gap-4 px-8 py-4 rounded-2xl border transition-all text-[11px] font-black uppercase tracking-widest ${
-                      result.outcome?.status === status.id 
-                      ? 'bg-white text-[#2D2D2D] border-white shadow-xl shadow-white/5' 
-                      : `bg-white/5 border-white/10 text-gray-300 ${status.color}`
-                   }`}
-                 >
-                   <status.icon className={`${status.id === 'success' ? 'w-5 h-5 text-brand-sage' : 'w-5 h-5'}`} />
-                   {status.label}
-                 </button>
-               ))}
-            </div>
-
-            <AnimatePresence>
-              {result.outcome?.status && result.outcome.status !== 'pending' && (
-                <motion.div 
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  className="space-y-6 pt-6 border-t border-white/10"
-                >
-                  <p className="text-[10px] font-black uppercase text-gray-400 tracking-widest flex items-center gap-2">
-                    <MessageSquareQuote className="w-3.5 h-3.5" /> Retrospective Log: What changed on the ground?
-                  </p>
-                  <textarea 
-                    placeholder="Provide a quick retrospective..."
-                    value={localNotes}
-                    onChange={(e) => setLocalNotes(e.target.value)}
-                    className="w-full bg-white/5 border border-white/10 rounded-2xl p-6 text-sm italic focus:bg-white/10 outline-none min-h-[120px] transition-all"
-                  />
-                  <div className="flex justify-between items-center bg-white/5 p-4 rounded-xl border border-white/10">
-                    <p className="text-[9px] text-gray-500 font-bold uppercase tracking-tighter italic max-w-xs">Data captured. This retrospective will be injected into future prompts to fix recurring patterns.</p>
-                    <button
-                      onClick={() => onRefine(`RETROSPECTIVE ANALYSIS: I marked this decision as a ${result.outcome?.status}. My feedback: "${result.outcome?.notes}". Find real-world 2026 scenarios where this happens, and build a defense mechanism.`)}
-                      className="px-6 py-3 bg-brand-coral/20 text-brand-coral rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-brand-coral hover:text-white transition-all border border-brand-coral/20"
-                    >
-                      Audit Logic
-                    </button>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-          
-          <div className="w-full lg:w-1/3 bg-white/10 p-10 rounded-[2.5rem] border border-white/10 shadow-inner">
-             <div className="w-12 h-12 rounded-2xl bg-brand-sage/20 flex items-center justify-center text-brand-sage mb-8">
-                <Compass className="w-6 h-6" />
-             </div>
-             <p className="text-[10px] font-black uppercase text-gray-400 mb-2 tracking-[0.2em]">Learning Engine Status</p>
-             <p className="text-2xl font-serif italic mb-6 leading-tight">
-               {result.outcome?.status === 'pending' || !result.outcome?.status ? 'Observational Mode Active' : `Feedback Protocol: ${result.outcome?.status?.toUpperCase()}`}
-             </p>
-             <div className="space-y-4">
-                <div className="flex items-center gap-3 text-[10px] font-bold text-gray-300">
-                   <Target className="w-4 h-4 text-brand-sage" />
-                   Neural Mapping Updated
-                </div>
-                <div className="flex items-center gap-3 text-[10px] font-bold text-gray-300">
-                   <CheckCircle2 className="w-4 h-4 text-brand-sage" />
-                   Bias Model Calibrated
-                </div>
-             </div>
-             {result.outcome?.committedAt && (
-                <div className="mt-10 pt-8 border-t border-white/10">
-                   <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest leading-loose">Committed On: {new Date(result.outcome.committedAt).toLocaleString()}</p>
-                   <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest">ID: {result.id.slice(0, 8)}</p>
-                </div>
-             )}
-          </div>
-        </div>
-      </section>
-
       {/* 7. Follow-up Intelligence Thread */}
       {depth < 3 && result.followUps && result.followUps.length > 0 && (
         <div className="space-y-12 mt-12 pt-12 border-t-2 border-dashed border-gray-100">
@@ -796,6 +797,8 @@ Intelligence Report: ${result.summary}
            ))}
         </div>
       )}
-    </div>
+    </>
+  )}
+</div>
   );
 }

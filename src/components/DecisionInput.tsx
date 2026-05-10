@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
-import { Send, Sparkles, SlidersHorizontal, Info, ShieldAlert, Zap } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { Send, Sparkles, SlidersHorizontal, ShieldAlert, Zap, Image as ImageIcon, X } from 'lucide-react';
 import { UserPreferences } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface DecisionInputProps {
-  onAnalyze: (decision: string, preferences: UserPreferences) => void;
+  onAnalyze: (decision: string, preferences: UserPreferences, images?: string[]) => void;
   isLoading: boolean;
 }
 
@@ -18,6 +18,8 @@ const EXAMPLES = [
 export default function DecisionInput({ onAnalyze, isLoading }: DecisionInputProps) {
   const [value, setValue] = useState('');
   const [showPrefs, setShowPrefs] = useState(false);
+  const [images, setImages] = useState<string[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [prefs, setPrefs] = useState<UserPreferences>({
     risk: 50,
     cost: 50,
@@ -30,8 +32,25 @@ export default function DecisionInput({ onAnalyze, isLoading }: DecisionInputPro
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (value.trim() && !isLoading) {
-      onAnalyze(value, prefs);
+      onAnalyze(value, prefs, images);
     }
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+
+    Array.from(files).forEach(file => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImages(prev => [...prev, reader.result as string]);
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const removeImage = (index: number) => {
+    setImages(prev => prev.filter((_, i) => i !== index));
   };
 
   const updatePref = (key: keyof UserPreferences, val: any) => {
@@ -49,6 +68,27 @@ export default function DecisionInput({ onAnalyze, isLoading }: DecisionInputPro
             className="w-full min-h-[180px] p-8 text-xl font-serif italic border-2 border-border-light rounded-3xl focus:border-brand-sage focus:ring-0 resize-none transition-all duration-300 placeholder:text-gray-300 bg-white shadow-sm"
             disabled={isLoading}
           />
+
+          <div className="absolute bottom-6 left-8 flex items-center gap-4">
+             <input 
+               type="file" 
+               multiple 
+               accept="image/*" 
+               className="hidden" 
+               ref={fileInputRef} 
+               onChange={handleImageUpload}
+             />
+             <button
+               type="button"
+               disabled={isLoading}
+               onClick={() => fileInputRef.current?.click()}
+               className="flex items-center gap-2 p-2 px-4 rounded-xl border border-gray-100 bg-white text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-brand-sage hover:border-brand-sage/20 transition-all shadow-sm"
+             >
+                <ImageIcon className="w-3.5 h-3.5" />
+                Add Visual Context
+             </button>
+          </div>
+
           <button
             type="submit"
             disabled={!value.trim() || isLoading}
@@ -61,6 +101,38 @@ export default function DecisionInput({ onAnalyze, isLoading }: DecisionInputPro
             <Send className="w-6 h-6" />
           </button>
         </div>
+
+        {/* Thumbnail Preview */}
+        <AnimatePresence>
+          {images.length > 0 && (
+            <motion.div 
+               initial={{ opacity: 0, scale: 0.95 }}
+               animate={{ opacity: 1, scale: 1 }}
+               exit={{ opacity: 0, scale: 0.95 }}
+               className="flex flex-wrap gap-4 p-4 bg-[#F9F9F9] rounded-2xl border border-border-light"
+            >
+               {images.map((img, idx) => (
+                 <div key={idx} className="relative group w-24 h-24 rounded-xl overflow-hidden border border-white shadow-sm">
+                    <img src={img} alt="Uploaded" className="w-full h-full object-cover" />
+                    <button 
+                      type="button"
+                      onClick={() => removeImage(idx)}
+                      className="absolute top-1 right-1 p-1 bg-black/50 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                       <X className="w-3 h-3" />
+                    </button>
+                 </div>
+               ))}
+               <div 
+                 onClick={() => fileInputRef.current?.click()}
+                 className="w-24 h-24 rounded-xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center text-gray-300 hover:text-brand-sage hover:border-brand-sage transition-all cursor-pointer"
+               >
+                  <ImageIcon className="w-5 h-5 mb-1" />
+                  <span className="text-[8px] font-black uppercase tracking-widest">More</span>
+               </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         <div className="bg-white rounded-2xl border border-border-light overflow-hidden shadow-sm">
           <div className="flex divide-x divide-gray-100">

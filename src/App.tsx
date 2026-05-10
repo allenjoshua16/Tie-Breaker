@@ -16,9 +16,12 @@ import { AnalysisResult, UserPreferences, AppAnalytics } from './types';
 import { loginWithGoogle, logout, auth } from './lib/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { saveUser, saveDecision, fetchDecisions, deleteDecisions, normalizeDecision } from './lib/dbService';
+import { APIProvider } from '@vis.gl/react-google-maps';
 import DecisionInput from './components/DecisionInput';
 import ResultsDisplay from './components/ResultsDisplay';
 import AnalyticsDashboard from './components/AnalyticsDashboard';
+
+const GOOGLE_MAPS_KEY = process.env.GOOGLE_MAPS_PLATFORM_KEY || '';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -41,6 +44,7 @@ export default function App() {
   const [history, setHistory] = useState<AnalysisResult[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [showDashboard, setShowDashboard] = useState(false);
+  const [showAbout, setShowAbout] = useState(false);
   const [preferences, setPreferences] = useState<UserPreferences>({
     risk: 50,
     cost: 50,
@@ -142,7 +146,16 @@ export default function App() {
     }
   };
 
-  const handleAnalyze = useCallback(async (decision: string, preferences: UserPreferences) => {
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    const name = user?.displayName ? user.displayName.split(' ')[0] : 'Human 👽';
+    
+    if (hour < 12) return `Good Morning, ${name}`;
+    if (hour < 18) return `Good Afternoon, ${name}`;
+    return `Good Evening, ${name}`;
+  };
+
+  const handleAnalyze = useCallback(async (decision: string, preferences: UserPreferences, images?: string[]) => {
     if (loading) return;
     setLoading(true);
     setError(null);
@@ -165,7 +178,7 @@ export default function App() {
         - Recent Success/Failure Loop: ${historyContext || 'First decision'}
       `;
 
-      const data = await analyzeDecision(decision, preferences, personalizedContext);
+      const data = await analyzeDecision(decision, preferences, personalizedContext, images);
       const normalizedData = normalizeDecision(data);
       setError(null);
       setResult(normalizedData);
@@ -294,19 +307,124 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#F9F9F9]">
-      {/* Header */}
-      <header className="border-b border-border-light bg-white/80 backdrop-blur-md sticky top-0 z-[50] px-6 py-4">
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-[#4A4A4A] rounded-xl flex items-center justify-center text-white font-serif text-lg font-bold">
-              T
-            </div>
-            <div>
-              <h1 className="text-xl font-serif italic font-bold text-[#4A4A4A] leading-none">Tiebreaker</h1>
-              <p className="text-[8px] uppercase tracking-widest text-[#9B9B9B] font-bold mt-1">Decision Intelligence Platform</p>
-            </div>
-          </div>
+    <APIProvider apiKey={GOOGLE_MAPS_KEY}>
+      <div className="min-h-screen flex bg-[#F9F9F9]">
+        {/* Sidebar Archives - Claude style */}
+        <AnimatePresence mode="wait">
+          {showHistory && (
+            <motion.aside
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: 320, opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              className="h-screen sticky top-0 border-r border-border-light bg-white flex flex-col z-[60] overflow-hidden shadow-2xl"
+            >
+              <div className="p-6 border-b border-gray-50 flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-serif text-[#2D2D2D]">Archives</h2>
+                  <p className="text-[9px] text-gray-400 uppercase tracking-widest font-black">Intelligence History</p>
+                </div>
+                <button 
+                  onClick={() => setShowHistory(false)}
+                  className="p-2 hover:bg-gray-50 rounded-xl transition-colors text-gray-400 hover:text-brand-coral"
+                  title="Close Archives"
+                >
+                  <ChevronRight className="w-4 h-4 rotate-180" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-4 space-y-2">
+                {history.length === 0 ? (
+                  <div className="text-center py-12 px-4 opacity-40">
+                    <History className="w-8 h-8 mx-auto mb-3 text-gray-200" />
+                    <p className="text-[10px] font-bold uppercase tracking-widest">No Intelligence Records</p>
+                  </div>
+                ) : (
+                  history.map((item, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => {
+                        setResult(item);
+                        // On mobile, close sidebar after selection
+                        if (window.innerWidth < 768) setShowHistory(false);
+                      }}
+                      className={`w-full text-left p-4 rounded-2xl border transition-all group relative overflow-hidden ${
+                        result?.id === item.id 
+                          ? 'bg-brand-sage/5 border-brand-sage' 
+                          : 'bg-white border-transparent hover:border-gray-100 hover:bg-gray-50'
+                      }`}
+                    >
+                      <div className="relative z-1">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-[7px] font-black uppercase tracking-widest text-[#9B9B9B]">
+                            {new Date(item.timestamp).toLocaleDateString()}
+                          </span>
+                          {item.outcome?.status && item.outcome?.status !== 'pending' && (
+                            <span className={`w-1.5 h-1.5 rounded-full ${
+                              item.outcome.status === 'success' ? 'bg-brand-sage' :
+                              item.outcome.status === 'mistake' ? 'bg-brand-coral' : 'bg-brand-gold'
+                            }`} />
+                          )}
+                        </div>
+                        <p className="text-[11px] font-medium text-[#4A4A4A] truncate italic leading-tight mb-2">
+                          "{item.decision}"
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <div className="h-1 flex-1 bg-gray-100 rounded-full overflow-hidden">
+                            <div 
+                              className="h-full bg-brand-sage/40 rounded-full" 
+                              style={{ width: `${item.confidence.score}%` }} 
+                            />
+                          </div>
+                          <span className="text-[8px] font-bold text-gray-400">{item.confidence.score}%</span>
+                        </div>
+                      </div>
+                    </button>
+                  ))
+                )}
+              </div>
+
+              {history.length > 0 && (
+                <div className="p-4 border-t border-gray-50">
+                  <button 
+                    onClick={clearHistoryData}
+                    className="w-full py-3 text-[10px] font-black text-brand-coral uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-brand-coral/5 rounded-xl transition-all"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" /> Wipe Archives
+                  </button>
+                </div>
+              )}
+            </motion.aside>
+          )}
+        </AnimatePresence>
+
+        <div className="flex-1 flex flex-col min-w-0">
+          {/* Header */}
+          <header className={`border-b border-border-light bg-white/80 backdrop-blur-md sticky top-0 z-[50] px-6 py-4 transition-all ${showHistory ? 'left-80' : 'left-0'}`}>
+            <div className="max-w-6xl mx-auto flex items-center justify-between">
+              <div className="flex items-center gap-6">
+                {!showHistory && (
+                  <button 
+                    onClick={() => setShowHistory(true)}
+                    className="p-2 text-gray-400 hover:text-brand-sage hover:bg-gray-50 rounded-xl transition-all"
+                    title="Open Archives"
+                  >
+                    <History className="w-5 h-5" />
+                  </button>
+                )}
+                <button 
+                  onClick={() => setShowAbout(true)}
+                  className="flex items-center gap-3 group text-left transition-all active:scale-95"
+                >
+                  <div className="w-9 h-9 bg-[#4A4A4A] rounded-xl flex items-center justify-center text-white font-serif text-lg font-bold group-hover:bg-brand-sage transition-colors">
+                    T
+                  </div>
+                  <div>
+                    <h1 className="text-xl font-serif italic font-bold text-[#4A4A4A] leading-none group-hover:text-brand-sage transition-colors">Tiebreaker</h1>
+                    <p className="text-[8px] uppercase tracking-widest text-[#9B9B9B] font-bold mt-1 group-hover:text-brand-sage/60">Decision Intelligence Platform</p>
+                  </div>
+                </button>
+              </div>
           <nav className="flex items-center gap-3">
             {user ? (
                <div className="flex items-center gap-4 bg-gray-50 pr-2 pl-4 py-1.5 rounded-2xl border border-gray-100">
@@ -347,20 +465,12 @@ export default function App() {
             >
               <BarChart3 className="w-5 h-5" />
             </button>
-            <button 
-              onClick={() => setShowHistory(!showHistory)}
-              className={`px-4 py-2 text-xs font-bold uppercase tracking-widest border border-border-light rounded-xl transition-all flex items-center gap-2 ${
-                showHistory ? 'bg-[#4A4A4A] text-white border-[#4A4A4A]' : 'text-text-main hover:bg-gray-50'
-              }`}
-            >
-              <History className="w-3 h-3" />
-              Archives
-            </button>
+            <div className="w-px h-8 bg-gray-100 mx-1 hidden md:block" />
             <button 
               onClick={handleNewDecision}
               className="px-4 py-2 text-xs font-bold uppercase tracking-widest bg-brand-sage text-white rounded-xl hover:bg-[#6f8d86] shadow-sm transition-all"
             >
-              Consult Engine
+              New Analysis
             </button>
           </nav>
         </div>
@@ -368,97 +478,25 @@ export default function App() {
 
       <main className="flex-1 max-w-6xl mx-auto w-full px-4 py-12">
         <AnimatePresence mode="wait">
-          {showHistory ? (
-            <motion.div
-              key="history"
-              initial={{ opacity: 0, scale: 0.98 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.98 }}
-              className="max-w-3xl mx-auto"
-            >
-              <div className="flex items-center justify-between mb-8">
-                <div>
-                  <h2 className="text-3xl font-serif text-[#2D2D2D]">Intelligence Archives</h2>
-                  <p className="text-xs text-gray-400 mt-1 uppercase tracking-widest font-bold">Your analyzed high-stakes decisions</p>
-                </div>
-                {history.length > 0 && (
-                  <button 
-                    onClick={clearHistoryData}
-                    className="text-[10px] font-bold text-brand-coral uppercase tracking-widest flex items-center gap-2 hover:opacity-70 transition-opacity"
-                  >
-                    <Trash2 className="w-3 h-3" /> Wipe Archives
-                  </button>
-                )}
-              </div>
-
-              {history.length === 0 ? (
-                <div className="text-center py-24 bg-white rounded-[2rem] border border-dashed border-border-light">
-                  <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <History className="w-8 h-8 text-gray-200" />
-                  </div>
-                  <p className="text-gray-400 font-medium italic">No previous intelligence reports found.</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {history.map((item, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => {
-                        setResult(item);
-                        setShowHistory(false);
-                      }}
-                      className="w-full text-left bg-white p-6 rounded-3xl border border-border-light hover:border-brand-sage hover:shadow-md transition-all group flex items-center justify-between"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-[8px] uppercase tracking-widest font-bold text-brand-sage">Decision Report</span>
-                          {item.outcome?.status && item.outcome?.status !== 'pending' && (
-                             <span className={`px-1.5 py-0.5 rounded text-[7px] font-black uppercase tracking-tighter border ${
-                               item.outcome.status === 'success' ? 'bg-brand-sage/10 text-brand-sage border-brand-sage/20' :
-                               item.outcome.status === 'mistake' ? 'bg-brand-coral/10 text-brand-coral border-brand-coral/20' :
-                               'bg-brand-gold/10 text-brand-gold border-brand-gold/20'
-                             }`}>
-                               {item.outcome.status}
-                             </span>
-                          )}
-                        </div>
-                        <p className="text-lg font-serif italic text-text-main mb-1 truncate">"{item.decision}"</p>
-                        <div className="flex items-center gap-3">
-                          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Confidence: {item.confidence.score}%</span>
-                          <span className="text-[10px] text-gray-300">•</span>
-                          <p className="text-[10px] text-gray-400 font-medium truncate italic">"{item.summary.slice(0, 80)}..."</p>
-                        </div>
-                      </div>
-                      <ChevronRight className="w-5 h-5 text-gray-200 group-hover:text-brand-sage transform group-hover:translate-x-1 transition-all ml-4" />
-                    </button>
-                  ))}
-                </div>
-              )}
-            </motion.div>
-          ) : !result && !loading ? (
+          {!result && !loading ? (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              className="max-w-4xl mx-auto text-center mb-12"
+              className="max-w-4xl mx-auto text-center mb-10"
             >
-              <div className="inline-flex items-center gap-2 bg-white border border-border-light px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest text-brand-sage mb-6 shadow-sm">
-                <Sparkles className="w-3 h-3 text-brand-gold animate-pulse" />
-                V2: High-Stakes Decision Modeling
-              </div>
-              <h2 className="text-6xl font-serif text-[#2D2D2D] mb-8 leading-tight tracking-tight">
-                Turn uncertainty into <br />
-                <span className="italic underline decoration-brand-sage decoration-4 underline-offset-12">strategic precision</span>.
+              <h2 className="text-4xl font-serif text-[#2D2D2D] mb-4 tracking-tight">
+                {getGreeting()}
               </h2>
-              <p className="text-xl text-gray-500 font-medium max-w-2xl mx-auto leading-relaxed">
-                Tiebreaker isn't just a pro/con list. It's a high-confidence intelligence engine that models scenarios and weights decisions against your unique priorities.
+              <p className="text-sm text-gray-500 font-medium max-w-lg mx-auto opacity-70 italic leading-relaxed">
+                Strategic intelligence for high-stakes decisions and strategic precision.
               </p>
             </motion.div>
           ) : null}
         </AnimatePresence>
 
         <div className="max-w-3xl mx-auto mb-16 relative">
-          {!result && !showHistory && <DecisionInput onAnalyze={handleAnalyze} isLoading={loading} />}
+          {!result && <DecisionInput onAnalyze={handleAnalyze} isLoading={loading} />}
           
           {error && !result && (
             <motion.div 
@@ -502,30 +540,34 @@ export default function App() {
               transition={{ type: "spring", damping: 25, stiffness: 120 }}
               className="space-y-12"
             >
-              {/* Result Toolbar */}
-              <div className="flex items-center justify-between max-w-4xl mx-auto sticky top-[73px] z-[40] bg-[#F9F9F9]/80 backdrop-blur-sm py-2">
-                <button
-                   onClick={handleNewDecision}
-                   className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-[#4A4A4A] bg-white border border-border-light rounded-xl hover:shadow-md transition-all flex items-center gap-2"
-                >
-                  <ChevronRight className="w-3 h-3 rotate-180" /> Back to Workspace
-                </button>
-                <div className="flex gap-3">
-                  <button 
-                    onClick={handleShare}
-                    className="p-3 bg-white border border-border-light rounded-xl hover:shadow-md transition-all text-gray-500 hover:text-brand-sage"
-                    title="Share Analysis"
+              {/* Result Toolbar - Fixed overlap by making the sticky container full-width with a solid background */}
+              <div className="sticky top-[73px] z-[40] bg-[#F9F9F9] -mx-4 px-4 py-6 shadow-[0_20px_20px_-10px_rgba(249,249,249,1)]">
+                <div className="flex items-center justify-between max-w-4xl mx-auto">
+                  <button
+                    onClick={handleNewDecision}
+                    className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-[#4A4A4A] bg-white border border-border-light rounded-xl hover:shadow-md transition-all flex items-center gap-2"
                   >
-                    <Share2 className="w-4 h-4" />
+                    <ChevronRight className="w-3 h-3 rotate-180" /> Back to Workspace
                   </button>
+                  <div className="flex gap-3">
+                    <button 
+                      onClick={handleShare}
+                      className="p-3 bg-white border border-border-light rounded-xl hover:shadow-md transition-all text-gray-500 hover:text-brand-sage"
+                      title="Share Analysis"
+                    >
+                      <Share2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
 
-              <ResultsDisplay 
-                result={result} 
-                onRefine={handleRefine}
-                onUpdateOutcome={updateOutcome}
-              />
+              <div className="pt-4">
+                <ResultsDisplay 
+                  result={result} 
+                  onRefine={handleRefine}
+                  onUpdateOutcome={updateOutcome}
+                />
+              </div>
             </motion.div>
           ) : null}
         </AnimatePresence>
@@ -572,7 +614,102 @@ export default function App() {
           />
         )}
       </AnimatePresence>
+
+      {/* About Modal Overlay */}
+      <AnimatePresence>
+        {showAbout && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setShowAbout(false)}
+            className="fixed inset-0 z-[100] bg-white/90 backdrop-blur-xl flex items-center justify-center p-6"
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 40, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 20, scale: 0.95 }}
+              onClick={(e) => e.stopPropagation()}
+              className="max-w-2xl w-full bg-white border border-border-light rounded-[2.5rem] shadow-2xl overflow-hidden"
+            >
+              <div className="relative p-12">
+                <button 
+                  onClick={() => setShowAbout(false)}
+                  className="absolute top-8 right-8 p-3 hover:bg-gray-50 rounded-2xl transition-colors md:hidden"
+                >
+                  <ChevronRight className="w-5 h-5 rotate-180" />
+                </button>
+
+                <div className="flex items-center gap-4 mb-10">
+                  <div className="w-14 h-14 bg-[#4A4A4A] rounded-2xl flex items-center justify-center text-white font-serif text-2xl font-bold">
+                    T
+                  </div>
+                  <div>
+                    <h1 className="text-3xl font-serif italic font-bold text-[#4A4A4A]">Tiebreaker</h1>
+                    <p className="text-[10px] uppercase tracking-widest text-brand-sage font-black">Strategic Intelligence Engine</p>
+                  </div>
+                </div>
+
+                <div className="space-y-8">
+                  <section>
+                    <h3 className="text-xs font-black uppercase tracking-[0.2em] text-[#4A4A4A] mb-3 flex items-center gap-2">
+                       <ShieldCheck className="w-4 h-4 text-brand-sage" /> Purpose
+                    </h3>
+                    <p className="text-lg text-gray-500 font-serif italic leading-relaxed">
+                      Tiebreaker is built to dismantle the gridlock of high-stakes choices. We provide a neutral, deep-intelligence layer between your instincts and your actions, ensuring that strategic decisions are weighted against objective values rather than fleeting impulses.
+                    </p>
+                  </section>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <section>
+                      <h3 className="text-xs font-black uppercase tracking-[0.2em] text-[#4A4A4A] mb-3 flex items-center gap-2">
+                        <Zap className="w-4 h-4 text-brand-gold" /> Capabilities
+                      </h3>
+                      <ul className="space-y-2 text-[11px] font-bold text-gray-400 uppercase tracking-tight">
+                        <li className="flex items-center gap-2">
+                          <div className="w-1 h-1 bg-brand-sage rounded-full" /> Brutal Honesty Modeling
+                        </li>
+                        <li className="flex items-center gap-2">
+                          <div className="w-1 h-1 bg-brand-sage rounded-full" /> Risk-Mitigation Simulation
+                        </li>
+                        <li className="flex items-center gap-2">
+                          <div className="w-1 h-1 bg-brand-sage rounded-full" /> Cognitive Bias Detection
+                        </li>
+                        <li className="flex items-center gap-2">
+                          <div className="w-1 h-1 bg-brand-sage rounded-full" /> Long-term Impact Analysis
+                        </li>
+                      </ul>
+                    </section>
+                    <section>
+                      <h3 className="text-xs font-black uppercase tracking-[0.2em] text-[#4A4A4A] mb-3 flex items-center gap-2">
+                        <Compass className="w-4 h-4 text-brand-coral" /> Strategic Value
+                      </h3>
+                      <p className="text-sm text-gray-400 leading-relaxed italic">
+                        Move beyond binary "pro vs con" lists. Our engine identifies the 'Third Path'—strategic alternatives that balance stability with aggressive growth opportunities.
+                      </p>
+                    </section>
+                  </div>
+
+                  <div className="pt-8 border-t border-gray-50 flex justify-between items-center">
+                    <p className="text-[9px] text-gray-300 font-bold uppercase tracking-widest leading-none">
+                      v2.4.0 • Enterprise Decision Intelligence
+                    </p>
+                    <button 
+                      onClick={() => setShowAbout(false)}
+                      className="px-6 py-3 bg-[#4A4A4A] text-white text-[10px] font-black uppercase tracking-[0.2em] rounded-xl hover:bg-brand-sage transition-all shadow-lg"
+                    >
+                      Return to Command
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      </div>
     </div>
+    </APIProvider>
   );
 }
 

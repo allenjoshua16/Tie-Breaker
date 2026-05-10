@@ -45,6 +45,19 @@ export interface Source {
   reliability: 'High' | 'Medium' | 'Low';
 }
 
+export interface MapData {
+  origin: string;
+  destination: string;
+  travelMode: 'DRIVING' | 'WALKING' | 'BICYCLING' | 'TRANSIT';
+  description?: string;
+}
+
+export interface VisualAsset {
+  url?: string;
+  prompt: string;
+  description: string;
+}
+
 export interface UserPreferences {
   risk: number;
   cost: number;
@@ -128,6 +141,8 @@ export interface AnalysisResult {
   swot?: SWOT;
   followUps?: AnalysisResult[];
   preferences?: UserPreferences;
+  mapData?: MapData;
+  visualAsset?: VisualAsset;
   outcome?: {
     status: 'pending' | 'success' | 'mistake' | 'learning';
     notes?: string;
@@ -135,6 +150,7 @@ export interface AnalysisResult {
     loggedAt?: number;
     committedAt?: number;
   };
+  error?: string;
 }
 
 export interface AppAnalytics {
