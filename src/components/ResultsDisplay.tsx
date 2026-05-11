@@ -596,8 +596,13 @@ Intelligence Report: ${result.summary}
                         />
                       ) : (
                         <div className="w-full h-full min-h-[200px] flex flex-col items-center justify-center p-8 text-center text-gray-400">
-                           <Loader2 className="w-8 h-8 animate-spin mb-4" />
-                           <p className="text-[10px] font-bold uppercase tracking-widest leading-relaxed">System generating <br/> unique visual concept...</p>
+                          <ImageIcon className="w-8 h-8 mb-4 text-brand-gold/60" />
+                          <p className="text-[10px] font-bold uppercase tracking-widest leading-relaxed">
+                            Visualization unavailable
+                          </p>
+                          <p className="text-[10px] text-gray-400 mt-2 max-w-sm leading-relaxed">
+                            The AI generated the visual concept, but the image API quota is currently unavailable.
+                          </p>
                         </div>
                       )}
                       <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-6">
