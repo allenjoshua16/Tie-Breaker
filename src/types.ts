@@ -106,6 +106,13 @@ export interface ConfidenceBreakdown {
   variance: number;
   formula: string;
 }
+export interface SWOTAnalysis {
+  strengths: string[];
+  weaknesses: string[];
+  opportunities: string[];
+  threats: string[];
+}
+
 
 export interface AnalysisResult {
   id: string;
@@ -113,6 +120,9 @@ export interface AnalysisResult {
   decision: string;
   summary: string;
   verdict: string; // Explicit option chosen by AI
+  pros?: string[];
+  cons?: string[];
+  comparisonMatrix?: any[];
   confidence: ConfidenceScore;
   confidenceBreakdown?: ConfidenceBreakdown;
   criticalVariable: CriticalVariable;

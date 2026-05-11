@@ -667,6 +667,7 @@ export default function App() {
                 <div className="pt-4">
                   <ResultsDisplay
                     result={result}
+                    decision={result.decision}
                     onRefine={handleRefine}
                     onUpdateOutcome={updateOutcome}
                   />
