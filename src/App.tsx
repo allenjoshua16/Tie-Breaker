@@ -17,16 +17,20 @@ import {
   User as UserIcon,
   ShieldCheck,
   Zap,
-  Compass
+  Compass,
+  Map as MapIcon
 } from 'lucide-react';
 import { analyzeDecision } from './services/geminiService';
 import { AnalysisResult, UserPreferences, AppAnalytics } from './types';
 import { loginWithGoogle, logout, auth } from './lib/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { saveUser, saveDecision, fetchDecisions, deleteDecisions, normalizeDecision } from './lib/dbService';
+import { APIProvider } from '@vis.gl/react-google-maps';
 import DecisionInput from './components/DecisionInput';
 import ResultsDisplay from './components/ResultsDisplay';
 import AnalyticsDashboard from './components/AnalyticsDashboard';
+
+const GOOGLE_MAPS_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -188,7 +192,7 @@ export default function App() {
   };
 
   const handleAnalyze = useCallback(
-    async (decision: string, preferences: UserPreferences, images?: string[]) => {
+    async (decision: string, preferences: UserPreferences) => {
       if (loading) return;
 
       setLoading(true);
@@ -223,8 +227,7 @@ export default function App() {
         const data = await analyzeDecision(
           decision,
           preferences,
-          personalizedContext,
-          images
+          personalizedContext
         );
 
         const normalizedData = normalizeDecision(data);
@@ -369,8 +372,9 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen flex bg-[#F9F9F9]">
-      <AnimatePresence mode="wait">
+    <APIProvider apiKey={GOOGLE_MAPS_KEY}>
+      <div className="min-h-screen flex bg-[#F9F9F9]">
+        <AnimatePresence mode="wait">
         {showHistory && (
           <motion.aside
             initial={{ width: 0, opacity: 0 }}
@@ -667,7 +671,6 @@ export default function App() {
                 <div className="pt-4">
                   <ResultsDisplay
                     result={result}
-                    decision={result.decision}
                     onRefine={handleRefine}
                     onUpdateOutcome={updateOutcome}
                   />
@@ -827,5 +830,6 @@ export default function App() {
         </AnimatePresence>
       </div>
     </div>
+    </APIProvider>
   );
 }

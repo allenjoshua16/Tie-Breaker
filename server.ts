@@ -1,20 +1,20 @@
 import express from "express";
 import path from "path";
-import { fileURLToPath } from "url";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
 
 dotenv.config();
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  // Render typically provides the PORT environment variable as a string.
+  // We use Number() to ensure it's a number for Express's listen method.
+  const PORT = Number(process.env.PORT) || 3000;
 
-  app.use(express.json({ limit: '50mb' }));
+  console.log(`Starting server in ${process.env.NODE_ENV || "development"} mode on port ${PORT}`);
+
+  app.use(express.json({ limit: "50mb" }));
 
   const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
 
@@ -197,14 +197,6 @@ async function startServer() {
           description: { type: Type.STRING }
         },
         required: ["origin", "destination", "travelMode"]
-      },
-      visualAsset: {
-        type: Type.OBJECT,
-        properties: {
-          prompt: { type: Type.STRING },
-          description: { type: Type.STRING }
-        },
-        required: ["prompt", "description"]
       }
     },
     required: [
@@ -253,7 +245,8 @@ async function startServer() {
         });
       }
 
-      const modelName = (images && images.length > 0) || preferences?.deepIntelligence ? "gemini-1.5-pro" : "gemini-1.5-flash";
+      // Use the correct Gemini models based on the skill guidance
+      const modelName = preferences?.deepIntelligence ? "gemini-3.1-pro-preview" : "gemini-3-flash-preview";
       
       const response = await ai.models.generateContent({
         model: modelName,
@@ -261,8 +254,7 @@ async function startServer() {
         config: {
           responseMimeType: "application/json",
           responseSchema: ANALYSIS_SCHEMA as any,
-          tools: [{ googleSearch: {} }] as any,
-          toolConfig: { includeServerSideToolInvocations: true } as any
+          tools: [{ googleSearch: {} }] // Add grounding for better intelligence
         }
       });
 
@@ -273,32 +265,21 @@ async function startServer() {
 
       const result = JSON.parse(responseText);
 
-      // If a visual asset prompt was generated, trigger the image generation
-      if (result.visualAsset && result.visualAsset.prompt) {
-        try {
-          const imageModel = "gemini-1.5-flash";
-          const imagePrompt = `Generate a high-fidelity, professional strategic visualization for: ${result.visualAsset.prompt}. 
-                               Style: Corporate minimalist, Swiss design, clean, vector-style intelligence graphic. 16:9 aspect ratio.
-                               Context: ${result.visualAsset.description}`;
-
-          const imageResponse = await ai.models.generateContent({
-            model: imageModel,
-            contents: [{ role: "user", parts: [{ text: imagePrompt }] }],
-            config: {
-              imageConfig: {
-                aspectRatio: "16:9",
-              }
-            }
-          });
-
-          // Extract the image part
-          const imagePart = imageResponse.candidates?.[0]?.content?.parts?.find((p: any) => p.inlineData);
-          if (imagePart?.inlineData?.data) {
-            result.visualAsset.url = `data:image/png;base64,${imagePart.inlineData.data}`;
-          }
-        } catch (imgError) {
-          console.error("Image generation failed:", imgError);
-          // Don't fail the whole request if only image fails
+      // Extract search grounding sources if available
+      if (response.candidates?.[0]?.groundingMetadata?.groundingChunks) {
+        const groundingSources = response.candidates[0].groundingMetadata.groundingChunks
+          .map((chunk: any) => chunk.web)
+          .filter((web: any) => web && web.uri);
+          
+        if (groundingSources.length > 0) {
+          result.sources = [
+            ...result.sources,
+            ...groundingSources.map((s: any) => ({
+              title: s.title || "Web Research Intelligence",
+              url: s.uri,
+              reliability: "High"
+            }))
+          ];
         }
       }
 
@@ -317,6 +298,7 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
+    // In production, serving from the bundled 'dist' directory
     const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
     app.get("*", (req, res) => {
@@ -324,8 +306,9 @@ async function startServer() {
     });
   }
 
+  // Bind to 0.0.0.0 and the port provided by the environment (Render/Cloud Run requirement)
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`Server is running on port ${PORT}`);
   });
 }
 

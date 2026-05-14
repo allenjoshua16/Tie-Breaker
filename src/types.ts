@@ -52,12 +52,6 @@ export interface MapData {
   description?: string;
 }
 
-export interface VisualAsset {
-  url?: string;
-  prompt: string;
-  description: string;
-}
-
 export interface UserPreferences {
   risk: number;
   cost: number;
@@ -106,13 +100,6 @@ export interface ConfidenceBreakdown {
   variance: number;
   formula: string;
 }
-export interface SWOTAnalysis {
-  strengths: string[];
-  weaknesses: string[];
-  opportunities: string[];
-  threats: string[];
-}
-
 
 export interface AnalysisResult {
   id: string;
@@ -120,9 +107,6 @@ export interface AnalysisResult {
   decision: string;
   summary: string;
   verdict: string; // Explicit option chosen by AI
-  pros?: string[];
-  cons?: string[];
-  comparisonMatrix?: any[];
   confidence: ConfidenceScore;
   confidenceBreakdown?: ConfidenceBreakdown;
   criticalVariable: CriticalVariable;
@@ -152,7 +136,6 @@ export interface AnalysisResult {
   followUps?: AnalysisResult[];
   preferences?: UserPreferences;
   mapData?: MapData;
-  visualAsset?: VisualAsset;
   outcome?: {
     status: 'pending' | 'success' | 'mistake' | 'learning';
     notes?: string;
