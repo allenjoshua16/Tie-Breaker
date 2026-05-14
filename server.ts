@@ -276,7 +276,7 @@ async function startServer() {
       // If a visual asset prompt was generated, trigger the image generation
       if (result.visualAsset && result.visualAsset.prompt) {
         try {
-          const imageModel = "gemini-2.5-flash-image";
+          const imageModel = "gemini-1.5-flash";
           const imagePrompt = `Generate a high-fidelity, professional strategic visualization for: ${result.visualAsset.prompt}. 
                                Style: Corporate minimalist, Swiss design, clean, vector-style intelligence graphic. 16:9 aspect ratio.
                                Context: ${result.visualAsset.description}`;
