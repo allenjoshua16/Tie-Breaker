@@ -2,7 +2,7 @@ import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
 import { createServer as createViteServer } from "vite";
-import { GoogleGenAI, Type, Modality } from "@google/genai";
+import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -210,7 +210,7 @@ async function startServer() {
     required: [
       "summary", "verdict", "confidence", "confidenceBreakdown", "criticalVariable", 
       "weightBreakdown", "sensitivityAnalysis", "scoringEngine", "emotionalIntelligence", 
-      "nextSteps", "scenarios", "sources", "prosCons", "comparison", "swot", "visualAsset"
+      "nextSteps", "scenarios", "sources", "prosCons", "comparison", "swot"
     ]
   };
 
@@ -253,7 +253,7 @@ async function startServer() {
         });
       }
 
-      const modelName = (images && images.length > 0) || preferences?.deepIntelligence ? "gemini-3-pro-preview" : "gemini-3-flash-preview";
+      const modelName = (images && images.length > 0) || preferences?.deepIntelligence ? "gemini-1.5-pro" : "gemini-1.5-flash";
       
       const response = await ai.models.generateContent({
         model: modelName,
@@ -285,7 +285,6 @@ async function startServer() {
             model: imageModel,
             contents: [{ role: "user", parts: [{ text: imagePrompt }] }],
             config: {
-              responseModalities: [Modality.IMAGE],
               imageConfig: {
                 aspectRatio: "16:9",
               }
