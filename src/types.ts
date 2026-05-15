@@ -58,7 +58,6 @@ export interface UserPreferences {
   growth: number;
   stability: number;
   brutalHonesty: boolean;
-  deepIntelligence: boolean;
   deadline?: string;
 }
 

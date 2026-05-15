@@ -49,8 +49,7 @@ export default function App() {
     cost: 50,
     growth: 50,
     stability: 50,
-    brutalHonesty: true,
-    deepIntelligence: true
+    brutalHonesty: true
   });
 
   useEffect(() => {

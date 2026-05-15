@@ -205,8 +205,7 @@ export async function analyzeDecision(
          - Cost: ${preferences.cost}
          - Growth: ${preferences.growth}
          - Stability: ${preferences.stability}
-         - Mode: ${preferences.brutalHonesty ? 'BRUTAL HONESTY' : 'Standard'}
-         - Depth: ${preferences.deepIntelligence ? 'DEEP INTELLIGENCE' : 'Standard'}`
+         - Mode: ${preferences.brutalHonesty ? 'BRUTAL HONESTY' : 'Standard'}`
       : "Provide a balanced analysis.";
 
     const historyBlock = previousHistory ? `History:\n${previousHistory}` : "";
@@ -216,8 +215,8 @@ export async function analyzeDecision(
           ${historyBlock}
           Respond strictly in JSON format. Provide strategic analysis including SWOT and Comparison Matrix.`;
 
-    // Use gemini-3-flash-preview as default to avoid quota issues with pro
-    const modelName = preferences?.deepIntelligence ? "gemini-3.1-pro-preview" : "gemini-3-flash-preview";
+    // Use gemini-3-flash-preview for all requests to ensure free-tier usage
+    const modelName = "gemini-3-flash-preview";
     
     const response = await ai.models.generateContent({
       model: modelName,

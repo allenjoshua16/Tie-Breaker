@@ -462,12 +462,6 @@ Intelligence Report: ${result.summary}
             <div className="flex justify-between items-start mb-6">
               <div className="flex flex-col gap-2">
                 <span className="text-[10px] font-black uppercase tracking-[0.34em] text-brand-sage">Intelligence Verdict</span>
-                {result.preferences?.deepIntelligence && (
-                  <div className="flex items-center gap-1.5 px-2 py-0.5 bg-brand-gold/10 rounded-md border border-brand-gold/20">
-                     <Zap className="w-2.5 h-2.5 text-brand-gold fill-brand-gold" />
-                     <span className="text-[8px] font-black uppercase tracking-widest text-[#8a702e]">Deep Intelligence Active</span>
-                  </div>
-                )}
               </div>
               {result.timestamp && (
                 <span className="text-[9px] font-bold text-gray-300 uppercase tracking-widest">{getSafeDate(result.timestamp)}</span>
